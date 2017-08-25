@@ -340,6 +340,8 @@ namespace Octgn.Communication.Chat.Test
     public class TestChatDataProvider : IDataProvider
     {
         public Dictionary<string, IList<UserSubscription>> Subscriptions { get; set; }
+        public string GameServerName { get; set; } = "gameserv-unittest";
+
         public int IndexCounter = 0;
 
         public event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;

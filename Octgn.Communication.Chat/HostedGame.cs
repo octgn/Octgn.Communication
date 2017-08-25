@@ -1,16 +1,15 @@
-﻿using Octgn.Communication;
+﻿using Octgn.Communication.Packets;
 using System;
 
 namespace Octgn.Communication.Chat
 {
-
-    public class HostedGameInfo
+    public class HostedGame
     {
-        public HostedGameInfo() {
+        public HostedGame() {
 
         }
 
-        public HostedGameInfo(Guid id, Guid gameguid, Version gameversion, int port, string name, User huser,
+        public HostedGame(Guid id, Guid gameguid, Version gameversion, int port, string name, User huser,
                           DateTime startTime, string gameName, string gameIconUrl, string userIconUrl, bool hasPassword, string ipAddress, string source, string status, bool spectator) {
             Id = id;
             GameGuid = gameguid;
@@ -55,6 +54,22 @@ namespace Octgn.Communication.Chat
         public string ErrorMessage { get; set; }
         public override string ToString() {
             return $"HostedGameInfo(Id: {Id}, Host: {IpAddress}:{Port}, Source: {Source}, Status: {GameStatus}, Started: {TimeStarted}, User: {Username}, : '{Name}({GameGuid}) - {GameName}v{GameVersion}, Spec: {Spectator}, User Icon: {UserIconUrl}, Icon: {GameIconUrl}, Password: {HasPassword} ')";
+        }
+
+        public static HostedGame GetFromPacket(DictionaryPacket packet) {
+            return (HostedGame)packet["hostedgame"];
+        }
+
+        public static void AddToPacket(DictionaryPacket packet, HostedGame game) {
+            packet["hostedgame"] = game;
+        }
+
+        public static string GetIdFromPacket(DictionaryPacket packet) {
+            return (string)packet["hostedgameid"];
+        }
+
+        public static void AddIdToPacket(DictionaryPacket packet, string id) {
+            packet["hostedgameid"] = id;
         }
     }
 }

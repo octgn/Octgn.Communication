@@ -21,8 +21,13 @@ namespace Octgn.Communication.Chat
             _requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
             _requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
 
+            _requestHandler.Register(nameof(IClientCalls.HostGame), HostGame);
+            _requestHandler.Register(nameof(IClientCalls.SignalGameStarted), SignalGameStarted);
+
             if(_server.Serializer is XmlSerializer xmlSerializer) {
                 xmlSerializer.Include(typeof(UserSubscription));
+                xmlSerializer.Include(typeof(HostedGame));
+                xmlSerializer.Include(typeof(HostGameRequest));
             }
         }
 
@@ -101,6 +106,29 @@ namespace Octgn.Communication.Chat
             _dataProvider.AddUserSubscription(sub);
 
             return Task.FromResult(new ResponsePacket(packet, sub));
+        }
+
+        private async Task<ResponsePacket> HostGame(RequestContext context, RequestPacket packet) {
+            var req = HostGameRequest.GetFromPacket(packet);
+
+            HostedGame hostedGame = null;
+            foreach(var connection in this._server.UserProvider.GetConnections(_dataProvider.GameServerName)) {
+                var result = await connection.Request(packet);
+
+                hostedGame = result.As<HostedGame>();
+            }
+
+            return new ResponsePacket(packet, hostedGame);
+        }
+
+        private async Task<ResponsePacket> SignalGameStarted(RequestContext context, RequestPacket packet) {
+            var gameId = HostedGame.GetIdFromPacket(packet);
+
+            foreach(var connection in this._server.UserProvider.GetConnections(_dataProvider.GameServerName)) {
+                await connection.Request(packet);
+            }
+
+            return new ResponsePacket(packet);
         }
 
         private readonly RequestHandler _requestHandler = new RequestHandler();

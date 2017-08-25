@@ -13,5 +13,9 @@ namespace Octgn.Communication.Chat
         Task RemoveUserSubscription(string subscriptionId);
 
         Task<UserSubscription> UpdateUserSubscription(UserSubscription subscription);
+
+        Task<HostedGame> HostGame(HostGameRequest request);
+
+        Task SignalGameStarted(string gameId);
     }
 }

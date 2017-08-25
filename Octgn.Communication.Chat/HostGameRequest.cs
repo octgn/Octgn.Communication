@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Octgn.Communication.Packets;
+using System;
 
 namespace Octgn.Communication.Chat
 {
@@ -30,6 +31,14 @@ namespace Octgn.Communication.Chat
 
         public override string ToString() {
             return $"HostGameRequest({Name}({GameGuid}) - {GameName}v{GameVersion}, Spec: {Spectators}, Sas: {SasVersion}, Icon: {GameIconUrl}')";
+        }
+
+        public static HostGameRequest GetFromPacket(DictionaryPacket packet) {
+            return (HostGameRequest)packet["hostgamerequest"];
+        }
+
+        public static void AddToPacket(DictionaryPacket packet, HostGameRequest req) {
+            packet["hostgamerequest"] = req;
         }
     }
 }

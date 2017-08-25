@@ -51,5 +51,21 @@ namespace Octgn.Communication.Chat
 
             return result.As<UserSubscription>();
         }
+
+        public async Task<HostedGame> HostGame(HostGameRequest request) {
+            var packet = new RequestPacket(nameof(IClientCalls.HostGame));
+            HostGameRequest.AddToPacket(packet, request);
+
+            var result = await _client.Connection.Request(packet);
+
+            return result.As<HostedGame>();
+        }
+
+        public Task SignalGameStarted(string gameId) {
+            var packet = new RequestPacket(nameof(IClientCalls.SignalGameStarted));
+            HostedGame.AddIdToPacket(packet, gameId);
+
+            return _client.Connection.Request(packet);
+        }
     }
 }

@@ -39,7 +39,7 @@
     <Compile Include="ChatServerModule.cs" />
     <Compile Include="ClientCalls.cs" />
     <Compile Include="ExtensionMethods.cs" />
-    <Compile Include="HostedGameInfo.cs" />
+    <Compile Include="HostedGame.cs" />
     <Compile Include="HostGameRequest.cs" />
     <Compile Include="IClientCalls.cs" />
     <Compile Include="IDataProvider.cs" />

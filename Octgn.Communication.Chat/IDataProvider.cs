@@ -6,6 +6,7 @@ namespace Octgn.Communication.Chat
 {
     public interface IDataProvider
     {
+        string GameServerName { get; set; }
         event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
         IEnumerable<UserSubscription> GetUserSubscriptions(string user);
         void AddUserSubscription(UserSubscription subscription);

@@ -14,10 +14,13 @@ namespace Octgn.Communication.Chat
             RPC = new ClientCalls(client);
             _requestHandler.Register(nameof(IServerCalls.UserUpdated), OnUserUpdated);
             _requestHandler.Register(nameof(IServerCalls.UserSubscriptionUpdated), OnUserSubscriptionUpdated);
+            _requestHandler.Register(nameof(IServerCalls.HostedGameReady), OnHostedGameReady);
             _requestHandler.Register(nameof(Message), OnMessageReceived);
 
             if(client.Serializer is XmlSerializer xmlSerializer) {
                 xmlSerializer.Include(typeof(UserSubscription));
+                xmlSerializer.Include(typeof(HostedGame));
+                xmlSerializer.Include(typeof(HostGameRequest));
             }
         }
 
@@ -59,6 +62,18 @@ namespace Octgn.Communication.Chat
             return Task.FromResult(new ResponsePacket(packet));
         }
 
+        public event EventHandler<HostedGameReadyEventArgs> HostedGameReady;
+        private Task<ResponsePacket> OnHostedGameReady(RequestContext context, RequestPacket packet) {
+            var game = HostedGame.GetFromPacket(packet);
+
+            var args = new HostedGameReadyEventArgs {
+                Client = context.Client,
+                Game = game
+            };
+            HostedGameReady?.Invoke(this, args);
+            return Task.FromResult(new ResponsePacket(packet));
+        }
+
         private readonly RequestHandler _requestHandler = new RequestHandler();
 
         public Task HandleRequest(object sender, HandleRequestEventArgs args) {
@@ -79,5 +94,11 @@ namespace Octgn.Communication.Chat
     {
         public Client Client { get; set; }
         public User User { get; set; }
+    }
+
+    public class HostedGameReadyEventArgs : EventArgs
+    {
+        public Client Client { get; set; }
+        public HostedGame Game { get; set; }
     }
 }

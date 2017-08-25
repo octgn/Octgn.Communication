@@ -7,5 +7,6 @@ namespace Octgn.Communication.Chat
     {
         Task UserUpdated(User user);
         Task UserSubscriptionUpdated(UserSubscription subscription);
+        Task HostedGameReady(HostedGame data);
     }
 }
