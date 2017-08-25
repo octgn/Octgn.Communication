@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Octgn.Communication.WindowsDesktop")]
-[assembly: AssemblyDescription("OCTGN Chat integration with the Windows desktop")]
+[assembly: AssemblyDescription("OCTGN Communication integration with the Windows desktop")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("OCTGN")]
 [assembly: AssemblyProduct("Octgn.Communication.WindowsDesktop")]

@@ -8,9 +8,9 @@ namespace Octgn.Communication.Chat
     {
         event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
         IEnumerable<UserSubscription> GetUserSubscriptions(string user);
-        void AddUserSubscription(UserSubscription subscription, string user);
-        void RemoveUserSubscription(string subscriptionId, string user);
-        void UpdateUserSubscription(UserSubscription subscription, string user);
+        void AddUserSubscription(UserSubscription subscription);
+        void RemoveUserSubscription(string subscriptionId);
+        void UpdateUserSubscription(UserSubscription subscription);
         IEnumerable<string> GetUserSubscribers(string user);
     }
 
