@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Octgn.Communication.Messages;
 using System.Collections.Generic;
-using Octgn.Communication;
 using System.Linq;
 using Octgn.Communication.Serializers;
 
@@ -70,7 +69,7 @@ namespace Octgn.Communication.Chat.Test
                         Assert.IsNull(result);
                         Assert.Fail("Should have thrown an UnauthroizedAccessException");
                     } catch (ErrorResponseException ex) {
-                        Assert.AreEqual(ErrorResponseCodes.UnauthorizedRequest, ex.Code);
+                        Assert.AreEqual(Octgn.Communication.ErrorResponseCodes.UnauthorizedRequest, ex.Code);
                     }
                 }
             }
@@ -270,7 +269,7 @@ namespace Octgn.Communication.Chat.Test
                         var result = await clientA.Request(new Message("clientB", "asdf"));
                         Assert.Fail("Request should have failed");
                     } catch (ErrorResponseException ex) {
-                        Assert.AreEqual(ErrorResponseCodes.UserOffline, ex.Code);
+                        Assert.AreEqual(Octgn.Communication.ErrorResponseCodes.UserOffline, ex.Code);
                     }
                 }
             }
@@ -349,11 +348,11 @@ namespace Octgn.Communication.Chat.Test
             Subscriptions = new Dictionary<string, IList<UserSubscription>>();
         }
 
-        public virtual void AddUserSubscription(UserSubscription subscription, string user) {
+        public virtual void AddUserSubscription(UserSubscription subscription) {
             subscription.Id = (++IndexCounter).ToString();
 
-            if(!Subscriptions.TryGetValue(user, out IList<UserSubscription> subscriptions)) {
-                Subscriptions.Add(user, subscriptions = new List<UserSubscription>());
+            if(!Subscriptions.TryGetValue(subscription.Subscriber, out IList<UserSubscription> subscriptions)) {
+                Subscriptions.Add(subscription.Subscriber, subscriptions = new List<UserSubscription>());
             }
             subscriptions.Add(subscription);
 
@@ -376,8 +375,10 @@ namespace Octgn.Communication.Chat.Test
             return subscriptions;
         }
 
-        public virtual void RemoveUserSubscription(string subscriptionId, string user) {
-            var subscriptions = Subscriptions[user];
+        public virtual void RemoveUserSubscription(string subscriptionId) {
+            var sub = this.GetUserSubscription(subscriptionId);
+
+            var subscriptions = Subscriptions[sub.Subscriber];
             var subscriptionToRemove = subscriptions.First(x => x.Id == subscriptionId);
             subscriptions.Remove(subscriptionToRemove);
 
@@ -389,8 +390,8 @@ namespace Octgn.Communication.Chat.Test
             UserSubscriptionUpdated?.Invoke(this, args);
         }
 
-        public virtual void UpdateUserSubscription(UserSubscription subscription, string user) {
-            var subscriptions = Subscriptions[user];
+        public virtual void UpdateUserSubscription(UserSubscription subscription) {
+            var subscriptions = Subscriptions[subscription.Subscriber];
             var subscriptionToUpdate = subscriptions.First(x => x.Id == subscription.Id);
             var index = subscriptions.IndexOf(subscriptionToUpdate);
 
@@ -402,6 +403,10 @@ namespace Octgn.Communication.Chat.Test
             };
 
             UserSubscriptionUpdated?.Invoke(this, args);
+        }
+
+        public UserSubscription GetUserSubscription(string subscriptionId) {
+            return Subscriptions.SelectMany(userSubs => userSubs.Value).FirstOrDefault(sub => sub.Id == subscriptionId);
         }
     }
 }

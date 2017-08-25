@@ -12,6 +12,7 @@ namespace Octgn.Communication.Chat
         void RemoveUserSubscription(string subscriptionId);
         void UpdateUserSubscription(UserSubscription subscription);
         IEnumerable<string> GetUserSubscribers(string user);
+        UserSubscription GetUserSubscription(string subscriptionId);
     }
 
     public class UserSubscriptionUpdatedEventArgs : EventArgs

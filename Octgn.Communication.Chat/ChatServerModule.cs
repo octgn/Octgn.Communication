@@ -1,5 +1,4 @@
-﻿using Octgn.Communication;
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System.Linq;
@@ -64,14 +63,29 @@ namespace Octgn.Communication.Chat
         private Task<ResponsePacket> OnUpdateUserSubscription(RequestContext context, RequestPacket packet) {
             var sub = UserSubscription.GetFromPacket(packet);
 
-            _dataProvider.UpdateUserSubscription(sub, context.User.NodeId);
+            // No other values are valid, and could potentially be malicious.
+            sub.Subscriber = context.User.NodeId;
+
+            _dataProvider.UpdateUserSubscription(sub);
             return Task.FromResult(new ResponsePacket(packet, sub));
         }
 
         private Task<ResponsePacket> OnRemoveUserSubscription(RequestContext context, RequestPacket packet) {
             var subid = UserSubscription.GetIdFromPacket(packet);
 
-            _dataProvider.RemoveUserSubscription(subid, context.User.NodeId);
+            if (string.IsNullOrWhiteSpace(subid)) {
+                var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
+                return Task.FromResult(new ResponsePacket(packet, errorData));
+            }
+
+            var sub = _dataProvider.GetUserSubscription(subid);
+
+            if (sub?.Subscriber != context.User.NodeId) {
+                var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
+                return Task.FromResult(new ResponsePacket(packet, errorData));
+            }
+
+            _dataProvider.RemoveUserSubscription(sub.Id);
 
             return Task.FromResult(new ResponsePacket(packet));
         }
@@ -82,8 +96,9 @@ namespace Octgn.Communication.Chat
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
+            sub.Subscriber = context.User.NodeId;
 
-            _dataProvider.AddUserSubscription(sub, context.User.NodeId);
+            _dataProvider.AddUserSubscription(sub);
 
             return Task.FromResult(new ResponsePacket(packet, sub));
         }
@@ -107,5 +122,10 @@ namespace Octgn.Communication.Chat
                 }
             }
         }
+    }
+
+    public static class ErrorResponseCodes
+    {
+        public const string UserSubscriptionNotFound = nameof(UserSubscriptionNotFound);
     }
 }
