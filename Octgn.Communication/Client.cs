@@ -49,11 +49,13 @@ namespace Octgn.Communication
 
         private string _username;
         private string _password;
-        public async Task<LoginResultType> Connect(string username, string password) {
-            if (_username != null) throw new InvalidOperationException("Cannot call Connect more than once.");
+        private bool _connected;
+        public Task<LoginResultType> Connect(string username, string password) {
+            if (_connected) throw new InvalidOperationException("Cannot call Connect more than once.");
+
             _username = username;
             _password = password;
-            return await Connect();
+            return Connect();
         }
 
         private async Task<LoginResultType> Connect() {
@@ -63,9 +65,14 @@ namespace Octgn.Communication
 
             var result = await LoginRequest(_username, _password);
             if (result == LoginResultType.Ok) {
+                _connected = true;
                 Me = new User(_username);
                 IsConnected = true;
+
                 FireConnectedEvent();
+            } else {
+                _username = null;
+                _password = null;
             }
             return result;
         }
