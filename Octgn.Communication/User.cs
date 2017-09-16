@@ -4,6 +4,7 @@
     {
         private static ILogger Log = LoggerFactory.Create(nameof(User));
         public string NodeId { get; set; }
+        public string DisplayName { get; set; }
 
         public string Status { get; set; }
 
@@ -16,7 +17,7 @@
         }
 
         public override string ToString() {
-            return NodeId;
+            return $"{DisplayName}#{NodeId}";
         }
 
         public const string OfflineStatus = "offline";
