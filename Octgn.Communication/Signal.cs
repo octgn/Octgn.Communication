@@ -22,9 +22,17 @@ namespace Octgn.Communication
             };
 
             if (OnException != null) {
-                await Task.Run(() => { // Run on a threadpool thread
-                    OnException?.Invoke(null, args);
-                });
+                try {
+                    await Task.Run(() => { // Run on a threadpool thread
+                        OnException?.Invoke(null, args);
+                    });
+                } catch (Exception innerException) {
+                    Exceptions.Enqueue(args);
+                    Exceptions.Enqueue(new ExceptionEventArgs {
+                        Exception = innerException,
+                        Message = nameof(FireOrQueueException)
+                    });
+                }
             } else {
                 Exceptions.Enqueue(args);
             }
@@ -36,7 +44,6 @@ namespace Octgn.Communication
     {
         public Exception Exception { get; set; }
         public string Message { get; set; }
-        public bool StoreException { get; set; }
 
         public override string ToString() {
             return Message + Environment.NewLine + Exception.ToString();
