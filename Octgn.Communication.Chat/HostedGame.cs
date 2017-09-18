@@ -16,7 +16,7 @@ namespace Octgn.Communication.Chat
             GameVersion = gameversion;
             Port = port;
             Name = name;
-            Username = huser.NodeId;
+            Username = huser.UserId;
             GameStatus = status;
             TimeStarted = startTime;
             HasPassword = hasPassword;

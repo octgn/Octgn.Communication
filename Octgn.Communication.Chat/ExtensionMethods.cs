@@ -21,7 +21,7 @@ namespace Octgn.Communication.Chat
         }
 
         public static Task<ResponsePacket> SendMessage(this Client client, User to, string message) {
-            return SendMessage(client, to.NodeId, message);
+            return SendMessage(client, to.UserId, message);
         }
     }
 }

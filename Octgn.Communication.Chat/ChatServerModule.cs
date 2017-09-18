@@ -61,7 +61,7 @@ namespace Octgn.Communication.Chat
         }
 
         private Task<ResponsePacket> OnGetUserSubscriptions(RequestContext context, RequestPacket packet) {
-            var subs = _dataProvider.GetUserSubscriptions(context.User.NodeId).ToArray();
+            var subs = _dataProvider.GetUserSubscriptions(context.User.UserId).ToArray();
             return Task.FromResult(new ResponsePacket(packet, subs));
         }
 
@@ -69,7 +69,7 @@ namespace Octgn.Communication.Chat
             var sub = UserSubscription.GetFromPacket(packet);
 
             // No other values are valid, and could potentially be malicious.
-            sub.Subscriber = context.User.NodeId;
+            sub.Subscriber = context.User.UserId;
 
             _dataProvider.UpdateUserSubscription(sub);
             return Task.FromResult(new ResponsePacket(packet, sub));
@@ -85,7 +85,7 @@ namespace Octgn.Communication.Chat
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.Subscriber != context.User.NodeId) {
+            if (sub?.Subscriber != context.User.UserId) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
                 return Task.FromResult(new ResponsePacket(packet, errorData));
             }
@@ -101,7 +101,7 @@ namespace Octgn.Communication.Chat
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.Subscriber = context.User.NodeId;
+            sub.Subscriber = context.User.UserId;
 
             _dataProvider.AddUserSubscription(sub);
 
@@ -138,7 +138,7 @@ namespace Octgn.Communication.Chat
         }
 
         public async Task UserChanged(object sender, UserChangedEventArgs e) {
-            var subscribedUsers = _dataProvider.GetUserSubscribers(e.User.NodeId);
+            var subscribedUsers = _dataProvider.GetUserSubscribers(e.User.UserId);
 
             foreach(var user in subscribedUsers) {
                 foreach(var connection in _server.UserProvider.GetConnections(user)) {

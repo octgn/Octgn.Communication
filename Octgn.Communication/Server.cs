@@ -125,7 +125,7 @@ namespace Octgn.Communication
                     if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
                         var fromUser = UserProvider.ValidateConnection(args.Connection);
 
-                        args.Packet.Origin = fromUser.NodeId;
+                        args.Packet.Origin = fromUser.UserId;
 
                         var toUserConnections = UserProvider.GetConnections(args.Packet.Destination);
 

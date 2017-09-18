@@ -227,7 +227,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.NotNull(update);
 
-                        Assert.AreEqual(nameof(clientB), update.NodeId);
+                        Assert.AreEqual(nameof(clientB), update.UserId);
                         Assert.AreEqual(User.OfflineStatus, update.Status);
 
                         await clientB.Connect($"clientB", "");
@@ -237,7 +237,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.NotNull(update);
 
-                        Assert.AreEqual(nameof(clientB), update.NodeId);
+                        Assert.AreEqual(nameof(clientB), update.UserId);
                         Assert.AreEqual(User.OnlineStatus, update.Status);
 
                         clientB.Connection.IsClosed = true;
@@ -247,7 +247,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.NotNull(update);
 
-                        Assert.AreEqual(nameof(clientB), update.NodeId);
+                        Assert.AreEqual(nameof(clientB), update.UserId);
                         Assert.AreEqual(User.OfflineStatus, update.Status);
                     }
                 }
@@ -301,11 +301,11 @@ namespace Octgn.Communication.Chat.Test
         }
 
         public virtual User GetUser(string username) {
-            return Users.FirstOrDefault(user => user.NodeId == username);
+            return Users.FirstOrDefault(user => user.UserId == username);
         }
 
         public virtual void UpdateUser(User user) {
-            var dbUser = Users.FirstOrDefault(u => u.NodeId == user.NodeId);
+            var dbUser = Users.FirstOrDefault(u => u.UserId == user.UserId);
             dbUser.Status = user.Status;
             throw new NotImplementedException();
         }

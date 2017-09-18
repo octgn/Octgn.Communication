@@ -24,7 +24,7 @@ namespace Octgn.Communication.Chat
         public async Task<UserSubscription> AddUserSubscription(string name, string category) {
             var subscription = new UserSubscription {
                 User = name,
-                Subscriber = _client.Me.NodeId,
+                Subscriber = _client.Me.UserId,
                 Category = category
             };
 

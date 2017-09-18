@@ -85,7 +85,7 @@ namespace Octgn.Communication
         public IEnumerable<IConnection> GetConnections(string username) {
             using (_dataLock.ReaderLock()) { 
                 return _connectionsToUsers
-                    .Where(x => username.Equals(x.Value.NodeId, StringComparison.OrdinalIgnoreCase))
+                    .Where(x => username.Equals(x.Value.UserId, StringComparison.OrdinalIgnoreCase))
                     .Select(x => x.Key)
                     .ToArray();
             }
