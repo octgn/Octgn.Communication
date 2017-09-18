@@ -19,13 +19,25 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    client.Connected += (_, __) => {
-                        throw new NotImplementedException();
-                    };
-                    var result = await client.Connect("user", "pass");
+                var expectedException = new NotImplementedException();
 
-                    Assert.AreEqual(LoginResultType.Ok, result);
+                void Signal_OnException(object sender, ExceptionEventArgs args) {
+                    if (args.Exception != expectedException)
+                        throw args.Exception;
+                }
+
+                try {
+                    Signal.OnException += Signal_OnException;
+                    using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
+                        client.Connected += (_, __) => {
+                            throw expectedException;
+                        };
+                        var result = await client.Connect("user", "pass");
+
+                        Assert.AreEqual(LoginResultType.Ok, result);
+                    }
+                } finally {
+                    Signal.OnException -= Signal_OnException;
                 }
             }
         }
