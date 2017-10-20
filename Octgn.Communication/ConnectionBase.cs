@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using Nito.AsyncEx;
 using System.Linq;
+using Octgn.Communication.Utility;
 
 namespace Octgn.Communication
 {
@@ -13,7 +14,9 @@ namespace Octgn.Communication
         public static TimeSpan WaitForResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         #region Identification
-        public string ConnectionId { get; } = Guid.NewGuid().ToString().ToUpper().Substring(0, 6);
+        public string ConnectionId { get; } = UID.Generate(++_nextSeed);
+
+        private static int _nextSeed = 0;
 
         public bool Equals(IConnection other)
         {
