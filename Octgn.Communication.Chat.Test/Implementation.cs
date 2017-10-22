@@ -79,7 +79,7 @@ namespace Octgn.Communication.Chat.Test
 
 
                     // make sure we're not connected
-                    Assert.IsTrue(client.Connection.IsClosed);
+                    Assert.IsFalse(client.IsConnected);
                 }
             }
         }
