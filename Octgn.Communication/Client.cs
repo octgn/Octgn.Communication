@@ -209,7 +209,7 @@ namespace Octgn.Communication
                 try {
                     await args.Connection.Response(response);
                 } catch (TimeoutException) {
-                    Log.Error($"Failed to send response packet {args.Packet} to {args.Connection}");
+                    Log.Error($"{nameof(Client)}: Failed to send response packet {args.Packet} to {args.Connection}");
                 }
             } catch (Exception ex) {
                 Signal.Exception(ex);

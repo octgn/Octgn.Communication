@@ -99,7 +99,7 @@ namespace Octgn.Communication
                 try {
                     await args.Connection.Response(packet);
                 } catch (Exception ex) {
-                    var errorMessage = $"Failed to send response packet {packet} to {args.Connection}";
+                    var errorMessage = $"{nameof(RespondPacket)}: Failed to send response packet {packet} to {args.Connection}";
                     Signal.Exception(ex, errorMessage);
                     Log.Error(errorMessage, ex);
                 }
@@ -111,7 +111,7 @@ namespace Octgn.Communication
                 try {
                     await args.Connection.Response(responsePacket);
                 } catch (Exception ex) {
-                    var errorMessage = $"Failed to send response packet {responsePacket} to {args.Connection}";
+                    var errorMessage = $"{nameof(Respond)}: Failed to send response packet {responsePacket} to {args.Connection}";
                     Signal.Exception(ex, errorMessage);
                     Log.Error(errorMessage, ex);
                 }
@@ -168,9 +168,6 @@ namespace Octgn.Communication
                     await RespondPacket(new ResponsePacket(args.Packet, err));
                     if (ex.IsCritical) 
                         args.Connection.IsClosed = true;
-                } catch (UnauthorizedAccessException ex) {
-                    await RespondPacket(new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnauthorizedRequest, ex.Message, true)));
-                    args.Connection.IsClosed = true;
                 } catch (Exception ex) {
                     Signal.Exception(ex);
 

@@ -314,7 +314,7 @@ namespace Octgn.Communication.Chat.Test
         }
 
         public string GetUserId(IConnection connection) {
-            return OnlineUsers.ValidateConnection(connection);
+            return OnlineUsers.GetUserId(connection);
         }
 
         public Task AddConnection(IConnection connection, string userId) {

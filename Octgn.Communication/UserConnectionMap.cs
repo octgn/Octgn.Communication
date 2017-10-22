@@ -79,15 +79,6 @@ namespace Octgn.Communication
             }
         }
 
-        public string ValidateConnection(IConnection connection) {
-            using (_dataLock.ReaderLock()) { 
-                if (!_connectionsToUsers.TryGetValue(connection, out string ret))
-                    throw new UnauthorizedAccessException();
-
-                return ret;
-            }
-        }
-
         public IEnumerable<IConnection> GetConnections(string username) {
             using (_dataLock.ReaderLock()) { 
                 return _connectionsToUsers
