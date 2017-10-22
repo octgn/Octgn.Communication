@@ -73,6 +73,7 @@ namespace Octgn.Communication.Chat.Test
 
                     try {
                         await client.Request(new RequestPacket("hello"));
+                        Assert.Fail("client request succeeded, it shouldn't have");
                     } catch (DisconnectedException) { }
                     catch (NotConnectedException) { }
 

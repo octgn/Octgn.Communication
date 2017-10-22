@@ -51,15 +51,23 @@ namespace Octgn.Communication
             return ConnectInternal();
         }
 
+        private bool _authenticating = false;
         private async Task ConnectInternal() {
             await Connection.Connect();
             Connection.ConnectionClosed += Connection_ConnectionClosed;
             Connection.RequestReceived += Connection_RequestReceived;
 
-            var result = await Authenticator.Authenticate(this, Connection);
+            AuthenticationResult result = null;
 
-            if (!result.Successful) {
-                throw new AuthenticationException(result.ErrorCode);
+            try {
+                _authenticating = true;
+                result = await Authenticator.Authenticate(this, Connection);
+
+                if (!result.Successful) {
+                    throw new AuthenticationException(result.ErrorCode);
+                }
+            } finally {
+                _authenticating = false;
             }
 
             this.UserId = result.UserId;
@@ -157,6 +165,7 @@ namespace Octgn.Communication
         }
 
         public Task<ResponsePacket> Request(RequestPacket request) {
+            if (!IsConnected && !_authenticating) throw new NotConnectedException($"Could not send the request {request}, the client is not connected.");
             return Connection.Request(request);
         }
 
