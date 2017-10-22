@@ -5,7 +5,7 @@ namespace Octgn.Communication.Chat
     public class UserSubscription
     {
         public string Id { get; set; }
-        public string Subscriber { get; set; }
+        public string SubscriberUserId { get; set; }
         public string UserId { get; set; }
         public string Category { get; set; }
         public UpdateType UpdateType { get; set; }

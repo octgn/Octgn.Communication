@@ -34,7 +34,7 @@ namespace Octgn.Communication.Chat
         private readonly Server _server;
         private async void _dataProvider_UserSubscriptionUpdated(object sender, UserSubscriptionUpdatedEventArgs args) {
             try {
-                var subscriberUsername = args.Subscription.Subscriber;
+                var subscriberUsername = args.Subscription.SubscriberUserId;
                 var subscription = args.Subscription;
                 var userId = args.Subscription.UserId;
 
@@ -71,7 +71,7 @@ namespace Octgn.Communication.Chat
             var sub = UserSubscription.GetFromPacket(packet);
 
             // No other values are valid, and could potentially be malicious.
-            sub.Subscriber = context.UserId;
+            sub.SubscriberUserId = context.UserId;
 
             _dataProvider.UpdateUserSubscription(sub);
             return Task.FromResult(new ResponsePacket(packet, sub));
@@ -87,7 +87,7 @@ namespace Octgn.Communication.Chat
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.Subscriber != context.UserId) {
+            if (sub?.SubscriberUserId != context.UserId) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
                 return Task.FromResult(new ResponsePacket(packet, errorData));
             }
@@ -103,7 +103,7 @@ namespace Octgn.Communication.Chat
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.Subscriber = context.UserId;
+            sub.SubscriberUserId = context.UserId;
 
             _dataProvider.AddUserSubscription(sub);
 

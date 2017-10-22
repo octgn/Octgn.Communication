@@ -163,7 +163,7 @@ namespace Octgn.Communication.Chat.Test
                         Assert.NotNull(update);
 
                         Assert.AreEqual(UpdateType.Add, update.UpdateType);
-                        Assert.AreEqual("clientA", update.Subscriber);
+                        Assert.AreEqual("clientA", update.SubscriberUserId);
                         Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual(null, update.Category);
 
@@ -178,7 +178,7 @@ namespace Octgn.Communication.Chat.Test
                         Assert.NotNull(result);
 
                         Assert.AreEqual(UpdateType.Update, update.UpdateType);
-                        Assert.AreEqual("clientA", update.Subscriber);
+                        Assert.AreEqual("clientA", update.SubscriberUserId);
                         Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual("chicken", update.Category);
 
@@ -186,7 +186,7 @@ namespace Octgn.Communication.Chat.Test
                         await clientA.Chat().RPC.RemoveUserSubscription(update.Id);
 
                         Assert.AreEqual(UpdateType.Remove, update.UpdateType);
-                        Assert.AreEqual("clientA", update.Subscriber);
+                        Assert.AreEqual("clientA", update.SubscriberUserId);
                         Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual("chicken", update.Category);
 
@@ -342,8 +342,8 @@ namespace Octgn.Communication.Chat.Test
         public virtual void AddUserSubscription(UserSubscription subscription) {
             subscription.Id = (++IndexCounter).ToString();
 
-            if(!Subscriptions.TryGetValue(subscription.Subscriber, out IList<UserSubscription> subscriptions)) {
-                Subscriptions.Add(subscription.Subscriber, subscriptions = new List<UserSubscription>());
+            if(!Subscriptions.TryGetValue(subscription.SubscriberUserId, out IList<UserSubscription> subscriptions)) {
+                Subscriptions.Add(subscription.SubscriberUserId, subscriptions = new List<UserSubscription>());
             }
             subscriptions.Add(subscription);
 
@@ -369,7 +369,7 @@ namespace Octgn.Communication.Chat.Test
         public virtual void RemoveUserSubscription(string subscriptionId) {
             var sub = this.GetUserSubscription(subscriptionId);
 
-            var subscriptions = Subscriptions[sub.Subscriber];
+            var subscriptions = Subscriptions[sub.SubscriberUserId];
             var subscriptionToRemove = subscriptions.First(x => x.Id == subscriptionId);
             subscriptions.Remove(subscriptionToRemove);
 
@@ -382,7 +382,7 @@ namespace Octgn.Communication.Chat.Test
         }
 
         public virtual void UpdateUserSubscription(UserSubscription subscription) {
-            var subscriptions = Subscriptions[subscription.Subscriber];
+            var subscriptions = Subscriptions[subscription.SubscriberUserId];
             var subscriptionToUpdate = subscriptions.First(x => x.Id == subscription.Id);
             var index = subscriptions.IndexOf(subscriptionToUpdate);
 
