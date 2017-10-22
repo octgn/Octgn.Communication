@@ -9,14 +9,14 @@ namespace Octgn.Communication.Chat
 
         }
 
-        public HostedGame(Guid id, Guid gameguid, Version gameversion, int port, string name, User huser,
+        public HostedGame(Guid id, Guid gameguid, Version gameversion, int port, string name, string huserId,
                           DateTime startTime, string gameName, string gameIconUrl, string userIconUrl, bool hasPassword, string ipAddress, string source, string status, bool spectator) {
             Id = id;
             GameGuid = gameguid;
             GameVersion = gameversion;
             Port = port;
             Name = name;
-            Username = huser.UserId;
+            HostUserId = huserId;
             GameStatus = status;
             TimeStarted = startTime;
             HasPassword = hasPassword;
@@ -39,7 +39,7 @@ namespace Octgn.Communication.Chat
 
         public String GameIconUrl { get; set; }
 
-        public string Username { get; set; }
+        public string HostUserId { get; set; }
 
         public String UserIconUrl { get; set; }
 
@@ -53,7 +53,7 @@ namespace Octgn.Communication.Chat
 
         public string ErrorMessage { get; set; }
         public override string ToString() {
-            return $"HostedGameInfo(Id: {Id}, Host: {IpAddress}:{Port}, Source: {Source}, Status: {GameStatus}, Started: {TimeStarted}, User: {Username}, : '{Name}({GameGuid}) - {GameName}v{GameVersion}, Spec: {Spectator}, User Icon: {UserIconUrl}, Icon: {GameIconUrl}, Password: {HasPassword} ')";
+            return $"HostedGameInfo(Id: {Id}, Host: {IpAddress}:{Port}, Source: {Source}, Status: {GameStatus}, Started: {TimeStarted}, HostUserId: {HostUserId}, : '{Name}({GameGuid}) - {GameName}v{GameVersion}, Spec: {Spectator}, User Icon: {UserIconUrl}, Icon: {GameIconUrl}, Password: {HasPassword} ')";
         }
 
         public static HostedGame GetFromPacket(DictionaryPacket packet) {

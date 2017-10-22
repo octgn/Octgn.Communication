@@ -1,6 +1,4 @@
-﻿using Octgn.Communication.Messages;
-using Octgn.Communication.Packets;
-using Octgn.Communication.Serializers;
+﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -11,7 +9,7 @@ namespace Octgn.Communication
     {
         private static ILogger Log = LoggerFactory.Create(typeof(Client));
 
-        public User Me { get; private set; }
+        public string UserId { get; set; }
         public IConnection Connection { get; private set; }
         private readonly object L_CONNECTION = new object();
 
@@ -38,53 +36,38 @@ namespace Octgn.Communication
 
         public ISerializer Serializer { get; }
 
-        public Client(IConnection connection, ISerializer serializer) {
+        public IAuthenticator Authenticator { get; }
+
+        public Client(IConnection connection, ISerializer serializer, IAuthenticator authenticator) {
             Connection = connection ?? throw new ArgumentNullException(nameof(connection));
             Connection.Serializer = Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-
-            if(Serializer is XmlSerializer xmlSerializer) {
-                xmlSerializer.Include(typeof(User));
-            }
+            Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
         }
 
-        private string _username;
-        private string _password;
         private bool _connected;
-        public Task<LoginResultType> Connect(string username, string password) {
+        public Task Connect() {
             if (_connected) throw new InvalidOperationException("Cannot call Connect more than once.");
 
-            _username = username;
-            _password = password;
-            return Connect();
+            return ConnectInternal();
         }
 
-        private async Task<LoginResultType> Connect() {
+        private async Task ConnectInternal() {
             await Connection.Connect();
             Connection.ConnectionClosed += Connection_ConnectionClosed;
             Connection.RequestReceived += Connection_RequestReceived;
 
-            var result = await LoginRequest(_username, _password);
-            if (result == LoginResultType.Ok) {
-                _connected = true;
-                Me = new User(_username);
-                IsConnected = true;
+            var result = await Authenticator.Authenticate(this, Connection);
 
-                FireConnectedEvent();
-            } else {
-                _username = null;
-                _password = null;
+            if (!result.Successful) {
+                throw new AuthenticationException(result.ErrorCode);
             }
-            return result;
-        }
 
-        private async Task<LoginResultType> LoginRequest(string username, string password) {
-            var login = new RequestPacket("login") {
-                ["username"] = username,
-                ["password"] = password
-            };
+            this.UserId = result.UserId;
 
-            var resultPacket = await Connection.Request(login);
-            return resultPacket.As<LoginResultType>();
+            _connected = true;
+            IsConnected = true;
+
+            FireConnectedEvent();
         }
 
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
@@ -96,7 +79,7 @@ namespace Octgn.Communication
                 FireDisconnectedEvent();
                 if (_disposed)
                 {
-                    Log.Info($"Client: {_username}: Disposed, not going to try and reconnect");
+                    Log.Info($"Client: {args.Connection}: {UserId}: Disposed, not going to try and reconnect");
                     return;
                 }
 
@@ -131,18 +114,13 @@ namespace Octgn.Communication
 
                     Log.Info($"{nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
 
-                    var result = LoginResultType.UnknownError;
-
                     try {
-                        result = await Connect();
+                        await ConnectInternal();
                     } catch (Exception ex) {
                         Log.Warn($"{nameof(ReconnectAsync)}: Error When Reconnecting...Going to try again...", ex);
                         await Task.Delay(5000);
                         continue;
                     }
-
-                    if (result != LoginResultType.Ok)
-                        throw new InvalidOperationException($"{nameof(ReconnectAsync)}: Login returned {result}, not expected");
 
                     Log.Info($"{nameof(ReconnectAsync)}: Reconnected after {currentTry} out of {maxRetryCount} tries");
                     return;
@@ -165,7 +143,7 @@ namespace Octgn.Communication
         private bool _disposed;
         public void Dispose() {
             _disposed = true;
-            Log.Info($"Client: {_username}: Disposed");
+            Log.Info($"Client: {Connection}: {UserId}: Disposed");
             foreach(var moduleKVP in _clientModules) {
                 var module = moduleKVP.Value;
 

@@ -26,7 +26,7 @@ namespace Octgn.Communication
                 Client = sender as Client
             };
             if(context.Server != null) {
-                context.User = context.Server.UserProvider.ValidateConnection(args.Connection);
+                context.UserId = context.Server.ConnectionProvider.GetUserId(args.Connection);
             }
 
             if (context.Server == null && context.Client == null)

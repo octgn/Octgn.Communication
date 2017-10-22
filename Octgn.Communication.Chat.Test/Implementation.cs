@@ -3,10 +3,11 @@ using NUnit.Framework;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using Octgn.Communication.Messages;
 using System.Collections.Generic;
 using System.Linq;
 using Octgn.Communication.Serializers;
+using Octgn.Communication.Packets;
+using FakeItEasy;
 
 namespace Octgn.Communication.Chat.Test
 {
@@ -50,27 +51,34 @@ namespace Octgn.Communication.Chat.Test
         }
 
         [TestCase]
-        public async Task TryingToSendMessagesWhenNotLoggedInReturnsPacketWithUnauthorizedAccessException() {
+        public async Task FailedAuthenticationCausesServerToDisconnectClient() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7902);
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            var authenticationHandler = A.Fake<IAuthenticationHandler>();
+
+            A.CallTo(() => authenticationHandler.Authenticate(A<Server>.Ignored, A<IConnection>.Ignored, A<AuthenticationRequestPacket>.Ignored))
+                .Returns(Task.FromResult(new AuthenticationResult() {
+                    ErrorCode = "TestError"
+                }));
+
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), authenticationHandler)) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    var loginResult = await client.Connect($"#{LoginResultType.EmailUnverified}", "`bad");
-
-                    Assert.AreEqual(LoginResultType.EmailUnverified, loginResult);
-
-                    // make sure we're still connected
-                    Assert.IsFalse(client.Connection.IsClosed);
+                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("bad"))) {
+                    try {
+                        await client.Connect();
+                    } catch (AuthenticationException ex) {
+                        Assert.AreEqual(ex.ErrorCode, "TestError");
+                    }
 
                     try {
-                        var result = await client.Request(new Message("asdf", "asdf"));
-                        Assert.IsNull(result);
-                        Assert.Fail("Should have thrown an UnauthroizedAccessException");
-                    } catch (ErrorResponseException ex) {
-                        Assert.AreEqual(Octgn.Communication.ErrorResponseCodes.UnauthorizedRequest, ex.Code);
-                    }
+                        await client.Request(new RequestPacket("hello"));
+                    } catch (DisconnectedException) { }
+                    catch (NotConnectedException) { }
+
+
+                    // make sure we're not connected
+                    Assert.IsTrue(client.Connection.IsClosed);
                 }
             }
         }
@@ -79,18 +87,18 @@ namespace Octgn.Communication.Chat.Test
         public async Task SendUserMessage() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7903);
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer()))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeChat();
                     clientB.InitializeChat();
 
-                    Assert.AreEqual(LoginResultType.Ok, await clientA.Connect($"clientA", ""));
-                    Assert.AreEqual(LoginResultType.Ok, await clientB.Connect($"clientB", ""));
+                    await clientA.Connect();
+                    await clientB.Connect();
 
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
 
@@ -101,7 +109,7 @@ namespace Octgn.Communication.Chat.Test
                             eveMessageReceived.Set();
                         };
 
-                        var result = await clientA.SendMessage(clientB.Me, "asdf");
+                        var result = await clientA.SendMessage(clientB.UserId, "asdf");
 
                         Assert.IsNotNull(result);
 
@@ -120,13 +128,13 @@ namespace Octgn.Communication.Chat.Test
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), serializer)) {
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), serializer, new TestAuthenticationHandler())) {
                 server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer()))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeChat();
                     clientB.InitializeChat();
 
@@ -142,7 +150,7 @@ namespace Octgn.Communication.Chat.Test
                             eveUpdateReceived.Set();
                         };
 
-                        await clientA.Connect($"clientA", "");
+                        await clientA.Connect();
 
                         var result = await clientA.Chat().RPC.AddUserSubscription("clientB", null);
 
@@ -155,7 +163,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.AreEqual(UpdateType.Add, update.UpdateType);
                         Assert.AreEqual("clientA", update.Subscriber);
-                        Assert.AreEqual("clientB", update.User);
+                        Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual(null, update.Category);
 
                         update.Category = "chicken";
@@ -170,7 +178,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.AreEqual(UpdateType.Update, update.UpdateType);
                         Assert.AreEqual("clientA", update.Subscriber);
-                        Assert.AreEqual("clientB", update.User);
+                        Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual("chicken", update.Category);
 
                         result = null;
@@ -178,7 +186,7 @@ namespace Octgn.Communication.Chat.Test
 
                         Assert.AreEqual(UpdateType.Remove, update.UpdateType);
                         Assert.AreEqual("clientA", update.Subscriber);
-                        Assert.AreEqual("clientB", update.User);
+                        Assert.AreEqual("clientB", update.UserId);
                         Assert.AreEqual("chicken", update.Category);
 
                         Assert.AreEqual(3, updateCount);
@@ -191,32 +199,28 @@ namespace Octgn.Communication.Chat.Test
         public async Task ReceiveUserUpdates() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7908);
 
-            TestUserProvider userProvider = null;
+            TestConnectionProvider userProvider = null;
 
-            using (var server = new Server(new TcpListener(endpoint), userProvider = new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), userProvider = new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                userProvider.AddUser(new User("clientB") {
-                    Status = User.OfflineStatus
-                });
-
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer()))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeChat();
                     clientB.InitializeChat();
 
                     using (var eveUpdateReceived = new AutoResetEvent(false)) {
 
-                        User update = null;
+                        UserUpdatedEventArgs updatedUserArgs = null;
 
                         clientA.Chat().UserUpdated += (sender, args) => {
-                            update = args.User;
+                            updatedUserArgs = args;
                             eveUpdateReceived.Set();
                         };
 
-                        await clientA.Connect($"clientA", "");
+                        await clientA.Connect();
 
                         var result = await clientA.Chat().RPC.AddUserSubscription("clientB", null);
 
@@ -225,30 +229,32 @@ namespace Octgn.Communication.Chat.Test
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");
 
-                        Assert.NotNull(update);
+                        Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), update.UserId);
-                        Assert.AreEqual(User.OfflineStatus, update.Status);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
 
-                        await clientB.Connect($"clientB", "");
+                        updatedUserArgs = null;
+
+                        await clientB.Connect();
 
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");
 
-                        Assert.NotNull(update);
+                        Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), update.UserId);
-                        Assert.AreEqual(User.OnlineStatus, update.Status);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(TestConnectionProvider.OnlineStatus, updatedUserArgs.UserStatus);
 
                         clientB.Connection.IsClosed = true;
 
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");
 
-                        Assert.NotNull(update);
+                        Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), update.UserId);
-                        Assert.AreEqual(User.OfflineStatus, update.Status);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
                     }
                 }
             }
@@ -259,11 +265,11 @@ namespace Octgn.Communication.Chat.Test
         public async Task SendMessageToOfflineUser_ThrowsException() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7906);
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    Assert.AreEqual(LoginResultType.Ok, await clientA.Connect($"clientA", ""));
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA"))) {
+                    await clientA.Connect();
 
                     try {
                         var result = await clientA.Request(new Message("clientB", "asdf"));
@@ -276,64 +282,46 @@ namespace Octgn.Communication.Chat.Test
         }
     }
 
-    public class TestUserProvider : IUserProvider
+    public class TestConnectionProvider : IConnectionProvider
     {
-        public IList<User> Users { get; set; } = new List<User>();
+        public const string OnlineStatus = nameof(OnlineStatus);
+        public const string OfflineStatus = nameof(OfflineStatus);
+
         private UserConnectionMap OnlineUsers { get; set; }
 
         private Server _server;
 
-        public TestUserProvider() {
+        public TestConnectionProvider() {
             OnlineUsers = new UserConnectionMap();
             OnlineUsers.UserConnectionChanged += OnlineUsers_UserConnectionChanged;
         }
 
         private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
             try {
-                await _server.UpdateUserStatus(e.User, e.IsConnected ? User.OnlineStatus : User.OfflineStatus);
+                await _server.UpdateUserStatus(e.UserId, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
         }
 
-        public void AddUser(User user) {
-            Users.Add(user);
-        }
-
-        public virtual User GetUser(string username) {
-            return Users.FirstOrDefault(user => user.UserId == username);
-        }
-
-        public virtual void UpdateUser(User user) {
-            var dbUser = Users.FirstOrDefault(u => u.UserId == user.UserId);
-            dbUser.Status = user.Status;
-            throw new NotImplementedException();
-        }
-
-        public User ValidateConnection(IConnection connection) {
-            return OnlineUsers.ValidateConnection(connection);
-        }
-
-        public IEnumerable<IConnection> GetConnections(string username) {
-            return OnlineUsers.GetConnections(username);
-        }
-
-        public Task AddConnection(IConnection connection, User user) {
-            return OnlineUsers.AddConnection(connection, user);
-        }
-
-        public virtual LoginResultType ValidateUser(string username, string password, out User user) {
-            if (username.StartsWith("#")) {
-                user = null;
-                return (LoginResultType)Enum.Parse(typeof(LoginResultType), username.Substring(1));
-            }
-
-            user = new User(username);
-            return LoginResultType.Ok;
+        public IEnumerable<IConnection> GetConnections(string userId) {
+            return OnlineUsers.GetConnections(userId);
         }
 
         public void Initialize(Server server) {
             _server = server;
+        }
+
+        public string GetUserId(IConnection connection) {
+            return OnlineUsers.ValidateConnection(connection);
+        }
+
+        public Task AddConnection(IConnection connection, string userId) {
+            return OnlineUsers.AddConnection(connection, userId);
+        }
+
+        public string GetUserStatus(string userId) {
+            return OnlineUsers.GetConnections(userId).Any() ? OnlineStatus : OfflineStatus;
         }
     }
 
@@ -367,7 +355,7 @@ namespace Octgn.Communication.Chat.Test
         }
 
         public virtual IEnumerable<string> GetUserSubscribers(string user) {
-            return Subscriptions.Where(usub => usub.Value.Any(sub => sub.User == user)).Select(usub => usub.Key);
+            return Subscriptions.Where(usub => usub.Value.Any(sub => sub.UserId == user)).Select(usub => usub.Key);
         }
 
         public virtual IEnumerable<UserSubscription> GetUserSubscriptions(string user) {
@@ -409,6 +397,32 @@ namespace Octgn.Communication.Chat.Test
 
         public UserSubscription GetUserSubscription(string subscriptionId) {
             return Subscriptions.SelectMany(userSubs => userSubs.Value).FirstOrDefault(sub => sub.Id == subscriptionId);
+        }
+    }
+
+    public class TestAuthenticator : IAuthenticator
+    {
+        public string UserId { get; set; }
+
+        public TestAuthenticator(string userId) {
+            UserId = userId;
+        }
+
+        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection) {
+            var authRequest = new AuthenticationRequestPacket("asdf") {
+                ["userid"] = UserId
+            };
+            var result = await client.Request(authRequest);
+            return result.As<AuthenticationResult>();
+        }
+    }
+
+    public class TestAuthenticationHandler : IAuthenticationHandler
+    {
+        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet) {
+            var userId = (string)packet["userid"];
+
+            return Task.FromResult(AuthenticationResult.Success(userId));
         }
     }
 }

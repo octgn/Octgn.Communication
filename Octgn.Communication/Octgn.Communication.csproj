@@ -35,6 +35,8 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AuthenticationException.cs" />
+    <Compile Include="AuthenticationResult.cs" />
     <Compile Include="Client.cs" />
     <Compile Include="ConcurrentConnectionCollection.cs" />
     <Compile Include="ConnectionBase.cs" />
@@ -43,20 +45,22 @@
     <Compile Include="ErrorResponseCodes.cs" />
     <Compile Include="ExtensionMethods.cs" />
     <Compile Include="HandleRequestEventArgs.cs" />
+    <Compile Include="IAuthenticationHandler.cs" />
+    <Compile Include="IAuthenticator.cs" />
     <Compile Include="IClientModule.cs" />
     <Compile Include="IConnection.cs" />
     <Compile Include="IConnectionListener.cs" />
+    <Compile Include="IConnectionProvider.cs" />
     <Compile Include="ILogger.cs" />
     <Compile Include="ISerializer.cs" />
     <Compile Include="IServerModule.cs" />
-    <Compile Include="IUserProvider.cs" />
     <Compile Include="LoggerFactory.cs" />
-    <Compile Include="Messages\LoginResultType.cs" />
     <Compile Include="Modules\PingModule.cs" />
     <Compile Include="NotConnectedException.cs" />
     <Compile Include="NullLogger.cs" />
     <Compile Include="Packet.cs" />
     <Compile Include="Packets\Ack.cs" />
+    <Compile Include="Packets\AuthenticationRequestPacket.cs" />
     <Compile Include="Packets\DataPacket.cs" />
     <Compile Include="Packets\DictionaryPacket.cs" />
     <Compile Include="ErrorResponseData.cs" />
@@ -73,7 +77,6 @@
     <Compile Include="Server.cs" />
     <Compile Include="Signal.cs" />
     <Compile Include="TransportSDK\PacketBuilder.cs" />
-    <Compile Include="User.cs" />
     <Compile Include="UserChangedEventArgs.cs" />
     <Compile Include="UserConnectionChangedEventArgs.cs" />
     <Compile Include="UserConnectionMap.cs" />

@@ -1,46 +1,35 @@
 ﻿using System;
 using System.Threading.Tasks;
-using Octgn.Communication.Messages;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Octgn.Communication.Test
 {
-    public class TestUserProvider : IUserProvider
+    public class TestUserProvider : IConnectionProvider
     {
-        public virtual User GetUser(string username) {
-            return null;
-        }
-
-        public virtual void UpdateUser(User user) {
-        }
-
+        public const string OnlineStatus = nameof(OnlineStatus);
+        public const string OfflineStatus = nameof(OfflineStatus);
         private UserConnectionMap OnlineUsers { get; } = new UserConnectionMap();
 
-        public User ValidateConnection(IConnection connection) {
-            return OnlineUsers.ValidateConnection(connection);
+        public IEnumerable<IConnection> GetConnections(string userId) {
+            return OnlineUsers.GetConnections(userId);
         }
 
-        public IEnumerable<IConnection> GetConnections(string username) {
-            return OnlineUsers.GetConnections(username);
-        }
-
-        public Task AddConnection(IConnection connection, User user) {
-            return OnlineUsers.AddConnection(connection, user);
-        }
-
-        public virtual LoginResultType ValidateUser(string username, string password, out User user) {
-            if (username.StartsWith("#")) {
-                user = null;
-                return (LoginResultType)Enum.Parse(typeof(LoginResultType), username.Substring(1));
-            }
-
-            user = new User(username);
-            return LoginResultType.Ok;
+        public Task AddConnection(IConnection connection, string userId) {
+            return OnlineUsers.AddConnection(connection, userId);
         }
 
         private Server _server;
         public void Initialize(Server server) {
             _server = server;
+        }
+
+        public string GetUserId(IConnection connection) {
+            return OnlineUsers.GetUserId(connection);
+        }
+
+        public string GetUserStatus(string userId) {
+            return OnlineUsers.GetConnections(userId).Any() ? OnlineStatus : OfflineStatus;
         }
     }
 }

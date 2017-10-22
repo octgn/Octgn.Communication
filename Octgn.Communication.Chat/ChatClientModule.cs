@@ -12,7 +12,7 @@ namespace Octgn.Communication.Chat
 
         public ChatClientModule(Client client) {
             RPC = new ClientCalls(client);
-            _requestHandler.Register(nameof(IServerCalls.UserUpdated), OnUserUpdated);
+            _requestHandler.Register(nameof(IServerCalls.UserStatusUpdated), OnUserStatusUpdated);
             _requestHandler.Register(nameof(IServerCalls.UserSubscriptionUpdated), OnUserSubscriptionUpdated);
             _requestHandler.Register(nameof(IServerCalls.HostedGameReady), OnHostedGameReady);
             _requestHandler.Register(nameof(Message), OnMessageReceived);
@@ -26,11 +26,11 @@ namespace Octgn.Communication.Chat
 
         public event EventHandler<UserUpdatedEventArgs> UserUpdated;
 
-        private Task<ResponsePacket> OnUserUpdated(RequestContext context, RequestPacket packet) {
+        private Task<ResponsePacket> OnUserStatusUpdated(RequestContext context, RequestPacket packet) {
             var args = new UserUpdatedEventArgs {
                 Client = context.Client,
-                User = (User)packet["user"]
-
+                UserId = (string)packet["userId"],
+                UserStatus = (string)packet["userStatus"]
             };
             UserUpdated?.Invoke(this, args);
             return Task.FromResult(new ResponsePacket(packet));
@@ -46,7 +46,7 @@ namespace Octgn.Communication.Chat
             };
             UserSubscriptionUpdated?.Invoke(this, args);
             if(subscription.UpdateType == UpdateType.Add) {
-                await OnUserUpdated(context, packet);
+                await OnUserStatusUpdated(context, packet);
             }
             return new ResponsePacket(packet);
         }
@@ -93,7 +93,8 @@ namespace Octgn.Communication.Chat
     public class UserUpdatedEventArgs : EventArgs
     {
         public Client Client { get; set; }
-        public User User { get; set; }
+        public string UserId { get; set; }
+        public string UserStatus { get; set; }
     }
 
     public class HostedGameReadyEventArgs : EventArgs

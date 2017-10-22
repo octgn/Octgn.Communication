@@ -1,6 +1,4 @@
-﻿using Octgn.Communication.Messages;
-using Octgn.Communication.Packets;
-using Octgn.Communication.Serializers;
+﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -33,23 +31,20 @@ namespace Octgn.Communication
         public ConcurrentConnectionCollection Connections { get; } = new ConcurrentConnectionCollection();
 
         public IConnectionListener Listener { get; }
-        public IUserProvider UserProvider { get; }
+        public IConnectionProvider ConnectionProvider { get; }
         public ISerializer Serializer { get; }
 
-        public Server(IConnectionListener listener, IUserProvider userProvider, ISerializer serializer)
+        public Server(IConnectionListener listener, IConnectionProvider connectionProvider, ISerializer serializer, IAuthenticationHandler authenticationHandler)
         {
             Listener = listener ?? throw new ArgumentNullException(nameof(listener));
-            UserProvider = userProvider ?? throw new ArgumentNullException(nameof(userProvider));
+            ConnectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
             Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+            _authenticationHandler = authenticationHandler ?? throw new ArgumentNullException(nameof(authenticationHandler));
 
             Listener.ConnectionCreated += Listener_ConnectionCreated;
 
-            if(Serializer is XmlSerializer xmlSerializer) {
-                xmlSerializer.Include(typeof(User));
-            }
-
             // Must be at the end
-            UserProvider.Initialize(this);
+            ConnectionProvider.Initialize(this);
         }
 
         private void Listener_ConnectionCreated(object sender, ConnectionCreatedEventArgs args)
@@ -65,17 +60,19 @@ namespace Octgn.Communication
         }
 
         private readonly List<IServerModule> _serverModules = new List<IServerModule>();
+        private readonly IAuthenticationHandler _authenticationHandler;
+
         public void Attach(IServerModule module) {
             _serverModules.Add(module);
         }
 
-        public async Task UpdateUserStatus(User user, string status) {
-            user.Status = status;
-            var handlerArgs = new UserChangedEventArgs() {
-                User = user
+        public async Task UpdateUserStatus(string userId, string status) {
+            var handlerArgs = new UserStatusChangedEventArgs() {
+                UserId = userId,
+                Status = status
             };
             foreach (var module in _serverModules) {
-                await module.UserChanged(this, handlerArgs);
+                await module.UserStatucChanged(this, handlerArgs);
                 if (handlerArgs.IsHandled) {
                     break;
                 }
@@ -123,11 +120,11 @@ namespace Octgn.Communication
                 Log.Info($"Handling {args.Packet}");
                 try {
                     if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
-                        var fromUser = UserProvider.ValidateConnection(args.Connection);
+                        var fromUser = ConnectionProvider.GetUserId(args.Connection);
 
-                        args.Packet.Origin = fromUser.UserId;
+                        args.Packet.Origin = fromUser;
 
-                        var toUserConnections = UserProvider.GetConnections(args.Packet.Destination);
+                        var toUserConnections = ConnectionProvider.GetConnections(args.Packet.Destination);
 
                         var newPacket = args.Packet;
                         var sendCount = 0;
@@ -151,27 +148,16 @@ namespace Octgn.Communication
                             await Respond(receiverResponse.Data);
                         }
                     } else {
-                        if(args.Packet.Name == "login") {
-                            var result = LoginResultType.UnknownError;
+                        if (args.Packet.Name == nameof(AuthenticationRequestPacket)) {
+                            var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Packet);
 
-                            var username = (string)args.Packet["username"];
-                            var password = (string)args.Packet["password"];
+                            await ConnectionProvider.AddConnection(args.Connection, result.UserId);
 
-                            User loginUser = null;
+                            await RespondPacket(new ResponsePacket(args.Packet, result));
 
-                            try {
-                                result = UserProvider.ValidateUser(username, password, out loginUser);
-                            } catch (Exception ex) {
-                                Log.Error(ex);
-                            }
-
-                            if (result == LoginResultType.Ok) {
-                                await UserProvider.AddConnection(args.Connection, loginUser);
-                            }
-
-                            await Respond(result);
+                            if(!result.Successful)
+                                args.Connection.IsClosed = true;
                         } else {
-
                             ResponsePacket response = await HandleRequest(args);
 
                             await RespondPacket(response);
@@ -180,11 +166,23 @@ namespace Octgn.Communication
                 } catch (ErrorResponseException ex) {
                     var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
                     await RespondPacket(new ResponsePacket(args.Packet, err));
+                    if (ex.IsCritical) 
+                        args.Connection.IsClosed = true;
                 } catch (UnauthorizedAccessException ex) {
                     await RespondPacket(new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnauthorizedRequest, ex.Message, true)));
+                    args.Connection.IsClosed = true;
+                } catch (Exception ex) {
+                    Signal.Exception(ex);
+
+                    var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "", true);
+                    await RespondPacket(new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, ex.Message, true)));
+
+                    args.Connection.IsClosed = true;
                 }
             } catch (Exception ex) {
+                // This also catches any exceptions raised by the exception handlers above because they try and send the error back to the user.
                 Signal.Exception(ex);
+                args.Connection.IsClosed = true;
             }
         }
 

@@ -36,21 +36,23 @@ namespace Octgn.Communication.Chat
             try {
                 var subscriberUsername = args.Subscription.Subscriber;
                 var subscription = args.Subscription;
-                var userUsername = args.Subscription.User;
+                var userId = args.Subscription.UserId;
 
-                var subscriber = _server.UserProvider.GetUser(subscriberUsername);
-                var user = _server.UserProvider.GetUser(userUsername);
-                var connections = _server.UserProvider.GetConnections(subscriberUsername);
+                var connections = _server.ConnectionProvider.GetConnections(subscriberUsername);
 
                 foreach (var connection in connections) {
-                    var packet = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
-                        ["user"] = user
+                    var subUpdatePacket = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
+                        ["userId"] = userId,
                     };
 
-                    UserSubscription.AddToPacket(packet, subscription);
+                    UserSubscription.AddToPacket(subUpdatePacket, subscription);
+
+                    if(subscription.UpdateType == UpdateType.Add || subscription.UpdateType == UpdateType.Update) {
+                        subUpdatePacket["userStatus"] = _server.ConnectionProvider.GetUserStatus(userId);
+                    }
 
                     try {
-                        await connection.Request(packet);
+                        await connection.Request(subUpdatePacket);
                     } catch (Exception ex) {
                         Signal.Exception(ex);
                     }
@@ -61,7 +63,7 @@ namespace Octgn.Communication.Chat
         }
 
         private Task<ResponsePacket> OnGetUserSubscriptions(RequestContext context, RequestPacket packet) {
-            var subs = _dataProvider.GetUserSubscriptions(context.User.UserId).ToArray();
+            var subs = _dataProvider.GetUserSubscriptions(context.UserId).ToArray();
             return Task.FromResult(new ResponsePacket(packet, subs));
         }
 
@@ -69,7 +71,7 @@ namespace Octgn.Communication.Chat
             var sub = UserSubscription.GetFromPacket(packet);
 
             // No other values are valid, and could potentially be malicious.
-            sub.Subscriber = context.User.UserId;
+            sub.Subscriber = context.UserId;
 
             _dataProvider.UpdateUserSubscription(sub);
             return Task.FromResult(new ResponsePacket(packet, sub));
@@ -85,7 +87,7 @@ namespace Octgn.Communication.Chat
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.Subscriber != context.User.UserId) {
+            if (sub?.Subscriber != context.UserId) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
                 return Task.FromResult(new ResponsePacket(packet, errorData));
             }
@@ -101,7 +103,7 @@ namespace Octgn.Communication.Chat
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.Subscriber = context.User.UserId;
+            sub.Subscriber = context.UserId;
 
             _dataProvider.AddUserSubscription(sub);
 
@@ -112,7 +114,7 @@ namespace Octgn.Communication.Chat
             var req = HostGameRequest.GetFromPacket(packet);
 
             HostedGame hostedGame = null;
-            foreach(var connection in this._server.UserProvider.GetConnections(_dataProvider.GameServerName)) {
+            foreach(var connection in this._server.ConnectionProvider.GetConnections(_dataProvider.GameServerName)) {
                 var result = await connection.Request(packet);
 
                 hostedGame = result.As<HostedGame>();
@@ -124,7 +126,7 @@ namespace Octgn.Communication.Chat
         private async Task<ResponsePacket> SignalGameStarted(RequestContext context, RequestPacket packet) {
             var gameId = HostedGame.GetIdFromPacket(packet);
 
-            foreach(var connection in this._server.UserProvider.GetConnections(_dataProvider.GameServerName)) {
+            foreach(var connection in this._server.ConnectionProvider.GetConnections(_dataProvider.GameServerName)) {
                 await connection.Request(packet);
             }
 
@@ -137,13 +139,16 @@ namespace Octgn.Communication.Chat
             return _requestHandler.HandleRequest(sender, args);
         }
 
-        public async Task UserChanged(object sender, UserChangedEventArgs e) {
-            var subscribedUsers = _dataProvider.GetUserSubscribers(e.User.UserId);
+        public async Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
+            if (string.IsNullOrWhiteSpace(e.UserId)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.UserId));
+            if (string.IsNullOrWhiteSpace(e.Status)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.Status));
+            var subscribedUsers = _dataProvider.GetUserSubscribers(e.UserId);
 
             foreach(var user in subscribedUsers) {
-                foreach(var connection in _server.UserProvider.GetConnections(user)) {
-                    var packet = new RequestPacket(nameof(IServerCalls.UserUpdated)) {
-                        ["user"] = e.User
+                foreach(var connection in _server.ConnectionProvider.GetConnections(user)) {
+                    var packet = new RequestPacket(nameof(IServerCalls.UserStatusUpdated)) {
+                        ["userId"] = e.UserId,
+                        ["userStatus"] = e.Status
                     };
 
                     await connection.Request(packet);

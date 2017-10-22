@@ -1,5 +1,4 @@
-﻿using Octgn.Communication;
-using Octgn.Communication.Packets;
+﻿using Octgn.Communication.Packets;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Chat
@@ -16,12 +15,8 @@ namespace Octgn.Communication.Chat
             return client.GetModule<ChatClientModule>();
         }
 
-        public static async Task<ResponsePacket> SendMessage(this Client client, string to, string message) {
-            return await client.Request(new Message(to, message));
-        }
-
-        public static Task<ResponsePacket> SendMessage(this Client client, User to, string message) {
-            return SendMessage(client, to.UserId, message);
+        public static async Task<ResponsePacket> SendMessage(this Client client, string toUserId, string message) {
+            return await client.Request(new Message(toUserId, message));
         }
     }
 }

@@ -2,7 +2,6 @@
 using NUnit.Framework;
 using System.Threading;
 using System.Threading.Tasks;
-using Octgn.Communication.Messages;
 using Octgn.Communication.Modules;
 using Octgn.Communication.Serializers;
 
@@ -17,13 +16,11 @@ namespace Octgn.Communication.Test
         public async Task TcpLayerOperates() {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    var result = await client.Connect("user", "pass");
-
-                    Assert.AreEqual(LoginResultType.Ok, result);
+                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("user"))) {
+                    await client.Connect();
                 }
             }
         }
@@ -34,14 +31,12 @@ namespace Octgn.Communication.Test
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), serializer)) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), serializer, new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), serializer)) {
-                    var result = await client.Connect("user", "pass");
-
-                    Assert.AreEqual(LoginResultType.Ok, result);
+                using (var client = new Client(new TcpConnection(endpoint.ToString()), serializer, new TestAuthenticator("user"))) {
+                    await client.Connect();
 
                     var originalConnection = client.Connection;
 
@@ -79,14 +74,14 @@ namespace Octgn.Communication.Test
         {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new SlowListener(new TcpListener(endpoint)), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new SlowListener(new TcpListener(endpoint)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer()))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    Assert.AreEqual(LoginResultType.Ok, await clientA.Connect($"clientA", ""));
-                    Assert.AreEqual(LoginResultType.Ok, await clientB.Connect($"clientB", ""));
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                    await clientA.Connect();
+                    await clientB.Connect();
 
                     var requestTime = await clientA.Connection.Ping();
 
@@ -99,14 +94,14 @@ namespace Octgn.Communication.Test
         public async Task CanSendTwoRequests() {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer()))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    Assert.AreEqual(LoginResultType.Ok, await clientA.Connect($"clientA", ""));
-                    Assert.AreEqual(LoginResultType.Ok, await clientB.Connect($"clientB", ""));
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                    await clientA.Connect();
+                    await clientB.Connect();
 
                     await clientA.Connection.Ping();
                     await clientA.Connection.Ping();

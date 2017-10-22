@@ -12,11 +12,11 @@ namespace Octgn.Communication
         private static ILogger Log = LoggerFactory.Create(nameof(UserConnectionMap));
 
         public event EventHandler<UserConnectionChangedEventArgs> UserConnectionChanged;
-        protected async Task FireUserConnectionChanged(User user, bool isConnected) {
+        protected async Task FireUserConnectionChanged(string userId, bool isConnected) {
             var eve = UserConnectionChanged;
             if (eve != null) {
                 var args = new UserConnectionChangedEventArgs {
-                    User = user,
+                    UserId = userId,
                     IsConnected = isConnected
                 };
 
@@ -26,21 +26,21 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly Dictionary<IConnection, User> _connectionsToUsers = new Dictionary<IConnection, User>();
+        private readonly Dictionary<IConnection, string> _connectionsToUsers = new Dictionary<IConnection, string>();
         private readonly AsyncReaderWriterLock _dataLock = new AsyncReaderWriterLock();
 
-        public async Task AddConnection(IConnection connection, User user) {
+        public async Task AddConnection(IConnection connection, string userId) {
             using (var locker = await _dataLock.UpgradeableReaderLockAsync()) {
-                if (_connectionsToUsers.ContainsKey(connection)) throw new InvalidOperationException($"{user} already mapped to {connection}");
+                if (_connectionsToUsers.ContainsKey(connection)) throw new InvalidOperationException($"{userId} already mapped to {connection}");
 
                 using (await locker.UpgradeAsync()) {
-                    _connectionsToUsers.Add(connection, user);
+                    _connectionsToUsers.Add(connection, userId);
                 }
 
                 connection.ConnectionClosed += UserConnection_ConnectionClosed;
-                Log.Info($"Mapped {user} to {connection}");
+                Log.Info($"Mapped {userId} to {connection}");
 
-                await FireUserConnectionChanged(user, true);
+                await FireUserConnectionChanged(userId, true);
             }
         }
 
@@ -52,17 +52,17 @@ namespace Octgn.Communication
 
                     connection.ConnectionClosed -= UserConnection_ConnectionClosed;
 
-                    if (!_connectionsToUsers.TryGetValue(connection, out User user)) throw new InvalidOperationException($"No mapping found for {connection}");
+                    if (!_connectionsToUsers.TryGetValue(connection, out string userId)) throw new InvalidOperationException($"No mapping found for {connection}");
 
 
                     using (await locker.UpgradeAsync()) {
                         _connectionsToUsers.Remove(connection);
-                        Log.Info($"Removed mapping from {user} to {connection}");
+                        Log.Info($"Removed mapping from {userId} to {connection}");
                     }
 
-                    if (!_connectionsToUsers.Any(x => x.Value.Equals(user))) {
+                    if (!_connectionsToUsers.Any(x => x.Value.Equals(userId))) {
                         // No connections left for the user, so they disconnected
-                        await FireUserConnectionChanged(user, false);
+                        await FireUserConnectionChanged(userId, false);
                     }
 
                 } catch (Exception ex) {
@@ -72,10 +72,16 @@ namespace Octgn.Communication
             }
         }
 
+        public string GetUserId(IConnection connection) {
+            using (_dataLock.ReaderLock()) {
+                _connectionsToUsers.TryGetValue(connection, out string ret);
+                return ret;
+            }
+        }
 
-        public User ValidateConnection(IConnection connection) {
+        public string ValidateConnection(IConnection connection) {
             using (_dataLock.ReaderLock()) { 
-                if (!_connectionsToUsers.TryGetValue(connection, out User ret))
+                if (!_connectionsToUsers.TryGetValue(connection, out string ret))
                     throw new UnauthorizedAccessException();
 
                 return ret;
@@ -85,13 +91,13 @@ namespace Octgn.Communication
         public IEnumerable<IConnection> GetConnections(string username) {
             using (_dataLock.ReaderLock()) { 
                 return _connectionsToUsers
-                    .Where(x => username.Equals(x.Value.UserId, StringComparison.OrdinalIgnoreCase))
+                    .Where(x => username.Equals(x.Value, StringComparison.OrdinalIgnoreCase))
                     .Select(x => x.Key)
                     .ToArray();
             }
         }
 
-        public IEnumerable<User> GetOnlineUsers() {
+        public IEnumerable<string> GetOnlineUsers() {
             using (_dataLock.ReaderLock()) { 
                 return _connectionsToUsers
                     .Select(x => x.Value)

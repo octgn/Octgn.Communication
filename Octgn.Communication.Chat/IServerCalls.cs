@@ -5,7 +5,7 @@ namespace Octgn.Communication.Chat
 {
     public interface IServerCalls
     {
-        Task UserUpdated(User user);
+        Task UserStatusUpdated(string userId, string userStatus);
         Task UserSubscriptionUpdated(UserSubscription subscription);
         Task HostedGameReady(HostedGame data);
     }

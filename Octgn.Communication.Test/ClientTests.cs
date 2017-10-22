@@ -1,5 +1,4 @@
 ﻿using NUnit.Framework;
-using Octgn.Communication.Messages;
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System;
@@ -16,7 +15,7 @@ namespace Octgn.Communication.Test
         {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
                 var expectedException = new NotImplementedException();
@@ -28,13 +27,11 @@ namespace Octgn.Communication.Test
 
                 try {
                     Signal.OnException += Signal_OnException;
-                    using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
+                    using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("a"))) {
                         client.Connected += (_, __) => {
                             throw expectedException;
                         };
-                        var result = await client.Connect("user", "pass");
-
-                        Assert.AreEqual(LoginResultType.Ok, result);
+                        await client.Connect();
                     }
                 } finally {
                     Signal.OnException -= Signal_OnException;
@@ -47,17 +44,15 @@ namespace Octgn.Communication.Test
         {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    var result = await client.Connect("", null);
-
-                    Assert.AreEqual(LoginResultType.Ok, result);
+                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("a"))) {
+                    await client.Connect();
 
                     try
                     {
-                        await client.Connect("", null);
+                        await client.Connect();
                         Assert.Fail("Should have thrown an exception");
 #pragma warning disable CS0168 // Variable is declared but never used
                     } catch (InvalidOperationException ex)
@@ -74,13 +69,11 @@ namespace Octgn.Communication.Test
         {
             var endpoint = GetEndpoint();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer())) {
-                    var result = await client.Connect("userA", null);
-
-                    Assert.AreEqual(LoginResultType.Ok, result);
+                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("userA"))) {
+                    await client.Connect();
 
                     var tcs = new TaskCompletionSource<RequestPacket>();
 
@@ -90,7 +83,7 @@ namespace Octgn.Communication.Test
                     };
 
                     var request = new RequestPacket("test");
-                    await server.UserProvider.GetConnections("userA").First().Request(request);
+                    await server.ConnectionProvider.GetConnections("userA").First().Request(request);
 
                     var delayTask = Task.Delay(10000);
 
@@ -101,6 +94,32 @@ namespace Octgn.Communication.Test
                     Assert.NotNull(tcs.Task.Result);
                 }
             }
+        }
+    }
+
+    public class TestAuthenticator : IAuthenticator
+    {
+        public string UserId { get; set; }
+
+        public TestAuthenticator(string userId) {
+            UserId = userId;
+        }
+
+        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection) {
+            var authRequest = new AuthenticationRequestPacket("asdf") {
+                ["userid"] = UserId
+            };
+            var result = await client.Request(authRequest);
+            return result.As<AuthenticationResult>();
+        }
+    }
+
+    public class TestAuthenticationHandler : IAuthenticationHandler
+    {
+        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet) {
+            var userId = (string)packet["userid"];
+
+            return Task.FromResult(AuthenticationResult.Success(userId));
         }
     }
 }

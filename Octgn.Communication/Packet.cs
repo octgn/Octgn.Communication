@@ -138,6 +138,7 @@ namespace Octgn.Communication
             RegisterPacketType<Octgn.Communication.Packets.Ack>();
             RegisterPacketType<Octgn.Communication.Packets.RequestPacket>();
             RegisterPacketType<Octgn.Communication.Packets.ResponsePacket>();
+            RegisterPacketType<Octgn.Communication.Packets.AuthenticationRequestPacket>();
         }
 
         public static void RegisterPacketType<T>() where T : Packet
