@@ -5,7 +5,10 @@ namespace Octgn.Communication.Packets
 {
     public class AuthenticationRequestPacket : RequestPacket
     {
-        public string AuthenticationType { get; set; }
+        public string AuthenticationType {
+            get => (string)this[nameof(AuthenticationType)];
+            set => this[nameof(AuthenticationType)] = value;
+        }
         internal override byte PacketTypeId => 5;
 
         public AuthenticationRequestPacket() {
