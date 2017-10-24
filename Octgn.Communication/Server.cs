@@ -1,6 +1,7 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
@@ -63,30 +64,60 @@ namespace Octgn.Communication
         private readonly IAuthenticationHandler _authenticationHandler;
 
         public void Attach(IServerModule module) {
-            _serverModules.Add(module);
+            lock (_serverModules) {
+                _serverModules.Add(module);
+            }
         }
 
         public async Task UpdateUserStatus(string userId, string status) {
+            VerifyNotDisposed();
+
             var handlerArgs = new UserStatusChangedEventArgs() {
                 UserId = userId,
                 Status = status
             };
-            foreach (var module in _serverModules) {
-                await module.UserStatucChanged(this, handlerArgs);
-                if (handlerArgs.IsHandled) {
-                    break;
+            IServerModule[] serverModules = null;
+
+            lock(_serverModules)
+                serverModules = _serverModules.ToArray();
+
+            foreach (var module in serverModules) {
+                try {
+                    VerifyNotDisposed();
+                    await module.UserStatucChanged(this, handlerArgs);
+                    if (handlerArgs.IsHandled) {
+                        break;
+                    }
+                } catch (Exception ex) {
+                    Signal.Exception(ex);
                 }
             }
         }
 
+        private int _disposeCallCount;
+        protected bool IsDisposed => _disposeCallCount > 0;
+
+        private void VerifyNotDisposed() {
+            if (IsDisposed) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
+        }
+
         public void Dispose()
         {
+            if (Interlocked.Increment(ref _disposeCallCount) > 0) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
+
             Log.Info("Disposing server");
             Connections.IsClosed = true;
-            foreach(var module in _serverModules) {
+
+            IServerModule[] serverModules = null;
+
+            lock (_serverModules) {
+                serverModules = _serverModules.ToArray();
+                _serverModules.Clear();
+            }
+
+            foreach(var module in serverModules) {
                 (module as IDisposable)?.Dispose();
             }
-            _serverModules.Clear();
             Listener.IsEnabled = false;
             Listener.ConnectionCreated -= Listener_ConnectionCreated;
             (Listener as IDisposable)?.Dispose();
