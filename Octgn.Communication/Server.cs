@@ -103,7 +103,7 @@ namespace Octgn.Communication
 
         public void Dispose()
         {
-            if (Interlocked.Increment(ref _disposeCallCount) > 0) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
+            if (Interlocked.CompareExchange(ref _disposeCallCount, 1, 0) > 0) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
 
             Log.Info("Disposing server");
             Connections.IsClosed = true;
