@@ -144,6 +144,10 @@ namespace Octgn.Communication.Chat.Test
 
                 using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
                 using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                    clientA.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
+                    clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
+
+
                     clientA.InitializeChat();
                     clientB.InitializeChat();
 
