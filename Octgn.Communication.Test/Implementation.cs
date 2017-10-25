@@ -36,6 +36,7 @@ namespace Octgn.Communication.Test
                 server.IsEnabled = true;
 
                 using (var client = new Client(new TcpConnection(endpoint.ToString()), serializer, new TestAuthenticator("user"))) {
+                    client.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     await client.Connect();
 
                     var originalConnection = client.Connection;
@@ -49,16 +50,17 @@ namespace Octgn.Communication.Test
                         // When it calls back, the server should auto pick it back up. This should be smooth as butter.
                         server.Connections.IsClosed = true; // closes all the connections
 
-                        var oldTimeout = ConnectionBase.WaitForResponseTimeout;
-                        try {
-                            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(2);
-                            await client.Connection.Ping();
-                            Assert.Fail("Connection breaking should have caused the client send to fail");
-                        } catch (Exception) {
+                        bool pingSucceeded = false;
 
-                        } finally {
-                            ConnectionBase.WaitForResponseTimeout = oldTimeout;
+                        try {
+                            await client.Connection.Ping();
+                            pingSucceeded = true;
+                        } catch (Exception ex){
+
                         }
+
+                        if(pingSucceeded)
+                            Assert.Fail("Connection breaking should have caused the client send to fail");
 
                         if (!eveClientConnected.WaitOne(MaxTimeout))
                             Assert.Fail("Client never reconnected");

@@ -99,6 +99,8 @@ namespace Octgn.Communication
         }
 
         public const int ReconnectRetryCount = 10;
+        public static TimeSpan DefaultReconnectRetryDelay = TimeSpan.FromSeconds(5);
+        public TimeSpan ReconnectRetryDelay { get; set; } = DefaultReconnectRetryDelay;
 
         private async Task ReconnectAsync() {
             var currentTry = 0;
@@ -123,10 +125,10 @@ namespace Octgn.Communication
                     Log.Info($"{nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
 
                     try {
+                        await Task.Delay(ReconnectRetryDelay);
                         await ConnectInternal();
                     } catch (Exception ex) {
                         Log.Warn($"{nameof(ReconnectAsync)}: Error When Reconnecting...Going to try again...", ex);
-                        await Task.Delay(5000);
                         continue;
                     }
 

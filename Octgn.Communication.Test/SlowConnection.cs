@@ -7,8 +7,8 @@ namespace Octgn.Communication.Test
     public class SlowConnection : IConnection
     {
         public ISerializer Serializer {
-            get => throw new NotImplementedException();
-            set => throw new NotImplementedException();
+            get => _connection.Serializer;
+            set => _connection.Serializer = value;
         }
 
         public string ConnectionId => _connection.ConnectionId;
