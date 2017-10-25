@@ -62,7 +62,15 @@ namespace Octgn.Communication.Chat.Test
                 }));
 
             using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), authenticationHandler)) {
+                var serverModule = new TestServerModule();
+                server.Attach(serverModule);
                 server.IsEnabled = true;
+
+                // Need to handle the 'hello' packet we send
+                serverModule.Request += (sender, args) => {
+                    if (args.Packet.Name == "hello")
+                        args.IsHandled = true;
+                };
 
                 using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("bad"))) {
                     try {
@@ -424,6 +432,20 @@ namespace Octgn.Communication.Chat.Test
             var userId = (string)packet["userid"];
 
             return Task.FromResult(AuthenticationResult.Success(userId));
+        }
+    }
+
+    public class TestServerModule : IServerModule
+    {
+        public event EventHandler<HandleRequestEventArgs> Request;
+
+        public Task HandleRequest(object sender, HandleRequestEventArgs args) {
+            Request?.Invoke(sender, args);
+            return Task.CompletedTask;
+        }
+
+        public Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
+            return Task.CompletedTask;
         }
     }
 }
