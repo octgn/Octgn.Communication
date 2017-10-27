@@ -14,9 +14,5 @@ namespace Octgn.Communication.Chat
         public static ChatClientModule Chat(this Client client) {
             return client.GetModule<ChatClientModule>();
         }
-
-        public static async Task<ResponsePacket> SendMessage(this Client client, string toUserId, string message) {
-            return await client.Request(new Message(toUserId, message));
-        }
     }
 }

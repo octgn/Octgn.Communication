@@ -196,13 +196,13 @@ namespace Octgn.Communication
         public event ConnectionClosed ConnectionClosed;
 
         private CancellationTokenSource _closedCancellation = new CancellationTokenSource();
-        private CancellationTokenExtensions.CancellationTokenTaskSource _closedCancellationTaskSource;
+        private CancellationTokenTaskSource<object> _closedCancellationTaskSource;
         private Task _closedCancellationTask;
 
         public ISerializer Serializer { get; set; }
 
         public ConnectionBase() {
-            _closedCancellationTaskSource = _closedCancellation.Token.ToCancellationTokenTaskSource();
+            _closedCancellationTaskSource = new CancellationTokenTaskSource<object>(_closedCancellation.Token);
             _closedCancellationTask = _closedCancellationTaskSource.Task;
         }
 

@@ -51,17 +51,6 @@ namespace Octgn.Communication.Chat
             return new ResponsePacket(packet);
         }
 
-        public event EventHandler<MessageReceivedEventArgs> MessageReceived;
-
-        private Task<ResponsePacket> OnMessageReceived(RequestContext context, RequestPacket packet) {
-            var args = new MessageReceivedEventArgs {
-                Client = context.Client,
-                Message = (Message)packet,
-            };
-            MessageReceived?.Invoke(this, args);
-            return Task.FromResult(new ResponsePacket(packet));
-        }
-
         public event EventHandler<HostedGameReadyEventArgs> HostedGameReady;
         private Task<ResponsePacket> OnHostedGameReady(RequestContext context, RequestPacket packet) {
             var game = HostedGame.GetFromPacket(packet);
@@ -78,15 +67,6 @@ namespace Octgn.Communication.Chat
 
         public Task HandleRequest(object sender, HandleRequestEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
-        }
-    }
-
-    public class MessageReceivedEventArgs : RequestReceivedEventArgs
-    {
-        public Message Message { get; set; }
-        private new RequestPacket Request { get; set; }
-
-        public MessageReceivedEventArgs() {
         }
     }
 

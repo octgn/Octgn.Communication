@@ -39,12 +39,8 @@ namespace Octgn.Communication
             return DateTime.Now - startTime;
         }
 
-        //public static Task<ResponsePacket> SendMessage(this Client client, string to, string message) {
-        //    return client.Request(new Message(to, message));
-        //}
-
-        //public static Task<IDeliverable> SendMessage(this Client client, User to, string message) {
-        //    return SendMessage(client, to.NodeId, message);
-        //}
+        public static Task<ResponsePacket> SendMessage(this Client client, string toUserId, string message) {
+            return client.Request(new Message(toUserId, message));
+        }
     }
 }

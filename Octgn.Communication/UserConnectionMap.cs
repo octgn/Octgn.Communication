@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using Nito.AsyncEx;
+using System.Collections.Concurrent;
 
 namespace Octgn.Communication
 {
@@ -26,74 +25,57 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly Dictionary<IConnection, string> _connectionsToUsers = new Dictionary<IConnection, string>();
-        private readonly AsyncReaderWriterLock _dataLock = new AsyncReaderWriterLock();
+        private readonly ConcurrentDictionary<IConnection, string> _connectionToUsers = new ConcurrentDictionary<IConnection, string>();
 
         public async Task AddConnection(IConnection connection, string userId) {
-            using (var locker = await _dataLock.UpgradeableReaderLockAsync()) {
-                if (_connectionsToUsers.ContainsKey(connection)) throw new InvalidOperationException($"{userId} already mapped to {connection}");
+            if(!_connectionToUsers.TryAdd(connection, userId))
+               throw new InvalidOperationException($"{userId} already mapped to {connection}");
 
-                using (await locker.UpgradeAsync()) {
-                    _connectionsToUsers.Add(connection, userId);
-                }
+            connection.ConnectionClosed += UserConnection_ConnectionClosed;
+            Log.Info($"Mapped {userId} to {connection}");
 
-                connection.ConnectionClosed += UserConnection_ConnectionClosed;
-                Log.Info($"Mapped {userId} to {connection}");
-
-                await FireUserConnectionChanged(userId, true);
-            }
+            await FireUserConnectionChanged(userId, true);
         }
 
         private async void UserConnection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             if (_isDisposed) return;
-            using (var locker = await _dataLock.UpgradeableReaderLockAsync()) {
-                try {
-                    var connection = args.Connection;
+            try {
+                var connection = args.Connection;
 
-                    connection.ConnectionClosed -= UserConnection_ConnectionClosed;
+                connection.ConnectionClosed -= UserConnection_ConnectionClosed;
 
-                    if (!_connectionsToUsers.TryGetValue(connection, out string userId)) throw new InvalidOperationException($"No mapping found for {connection}");
+                if(!_connectionToUsers.TryRemove(connection,out string userId))
+                    throw new InvalidOperationException($"No mapping found for {connection}");
 
+                Log.Info($"Removed mapping from {userId} to {connection}");
 
-                    using (await locker.UpgradeAsync()) {
-                        _connectionsToUsers.Remove(connection);
-                        Log.Info($"Removed mapping from {userId} to {connection}");
-                    }
-
-                    if (!_connectionsToUsers.Any(x => x.Value.Equals(userId))) {
-                        // No connections left for the user, so they disconnected
-                        await FireUserConnectionChanged(userId, false);
-                    }
-
-                } catch (Exception ex) {
-                    Log.Error(ex);
-                    Signal.Exception(ex);
+                if (!_connectionToUsers.Any(x => x.Value.Equals(userId))) {
+                    // No connections left for the user, so they disconnected
+                    await FireUserConnectionChanged(userId, false);
                 }
+
+            } catch (Exception ex) {
+                Log.Error(ex);
+                Signal.Exception(ex);
             }
         }
 
         public string GetUserId(IConnection connection) {
-            using (_dataLock.ReaderLock()) {
-                _connectionsToUsers.TryGetValue(connection, out string ret);
-                return ret;
-            }
+            _connectionToUsers.TryGetValue(connection, out string ret);
+            return ret;
         }
 
         public IEnumerable<IConnection> GetConnections(string username) {
-            using (_dataLock.ReaderLock()) { 
-                return _connectionsToUsers
-                    .Where(x => username.Equals(x.Value, StringComparison.OrdinalIgnoreCase))
-                    .Select(x => x.Key)
-                    .ToArray();
-            }
+            return _connectionToUsers
+                .Where(x => username.Equals(x.Value, StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.Key)
+                .ToArray();
         }
 
         public IEnumerable<string> GetOnlineUsers() {
-            using (_dataLock.ReaderLock()) { 
-                return _connectionsToUsers
-                    .Select(x => x.Value)
-                    .ToArray();
-            }
+            return _connectionToUsers
+                .Select(x => x.Value)
+                .ToArray();
         }
 
         private bool _isDisposed;
@@ -102,7 +84,7 @@ namespace Octgn.Communication
                 return;
             _isDisposed = true;
 
-            _connectionsToUsers.Clear();
+            _connectionToUsers.Clear();
         }
     }
 }

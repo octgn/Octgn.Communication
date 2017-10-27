@@ -1,7 +1,4 @@
-﻿using Octgn.Communication;
-using Octgn.Communication.Packets;
-
-namespace Octgn.Communication.Chat
+﻿namespace Octgn.Communication.Packets
 {
     public class Message : RequestPacket
     {
@@ -14,7 +11,7 @@ namespace Octgn.Communication.Chat
             set => this[nameof(Body)] = value;
         }
 
-        internal override byte PacketTypeId => 10;
+        internal override byte PacketTypeId => 6;
 
         public Message() : base(nameof(Message)) {
 
