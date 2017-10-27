@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
     public interface IClientCalls
     {
@@ -13,9 +13,5 @@ namespace Octgn.Communication.Chat
         Task RemoveUserSubscription(string subscriptionId);
 
         Task<UserSubscription> UpdateUserSubscription(UserSubscription subscription);
-
-        Task<HostedGame> HostGame(HostGameRequest request);
-
-        Task SignalGameStarted(string gameId);
     }
 }

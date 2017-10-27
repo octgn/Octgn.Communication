@@ -1,10 +1,7 @@
-﻿using Octgn.Communication;
-using System;
-using System.Collections.Generic;
+﻿using System;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
-
     public class UserSubscriptionUpdatedEventArgs : EventArgs
     {
         public Client Client { get; set; }

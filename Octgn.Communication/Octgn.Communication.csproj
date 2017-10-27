@@ -20,6 +20,7 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;NETSTANDARD2_0</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

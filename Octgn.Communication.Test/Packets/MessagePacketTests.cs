@@ -1,9 +1,9 @@
 ﻿using NUnit.Framework;
-using Octgn.Communication;
+using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System.Linq;
 
-namespace Octgn.Communication.Chat.Test
+namespace Octgn.Communication.Test.Packets
 {
     [TestFixture]
     public class MessagePacketTests

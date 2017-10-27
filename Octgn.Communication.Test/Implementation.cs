@@ -110,5 +110,35 @@ namespace Octgn.Communication.Test
                 }
             }
         }
+
+        [TestCase]
+        public async Task UnhandledPacketFailsProperly() {
+            var endpoint = GetEndpoint();
+
+            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+
+                // Don't attach the ping module, that way the server won't know how to handle the ping request.
+                //server.Attach(new PingModule());
+
+                server.IsEnabled = true;
+
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA"))) {
+                    await clientA.Connect();
+
+                    var delayTask = Task.Delay(10000);
+
+                    var pingTask = clientA.Connection.Ping();
+
+                    try {
+                        var result = await clientA.Connection.Ping();
+                    } catch (ErrorResponseException ex) {
+                        Assert.AreEqual(ErrorResponseCodes.UnhandledRequest, ex.Code);
+                        return;
+                    }
+
+                    Assert.Fail("Ping request didn't throw an exception");
+                }
+            }
+        }
     }
 }

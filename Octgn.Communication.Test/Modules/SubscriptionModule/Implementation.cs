@@ -8,8 +8,9 @@ using System.Linq;
 using Octgn.Communication.Serializers;
 using Octgn.Communication.Packets;
 using FakeItEasy;
+using Octgn.Communication.Modules.SubscriptionModule;
 
-namespace Octgn.Communication.Chat.Test
+namespace Octgn.Communication.Test.Modules.SubscriptionModule
 {
     [TestFixture]
     [Parallelizable(ParallelScope.None)]
@@ -97,14 +98,14 @@ namespace Octgn.Communication.Chat.Test
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7903);
 
             using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
                 using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
                 using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
-                    clientA.InitializeChat();
-                    clientB.InitializeChat();
+                    clientA.InitializeSubscriptionModule();
+                    clientB.InitializeSubscriptionModule();
 
                     await clientA.Connect();
                     await clientB.Connect();
@@ -113,8 +114,13 @@ namespace Octgn.Communication.Chat.Test
 
                         string messageBody = null;
 
-                        clientB.Chat().MessageReceived += (sender, args) => {
-                            messageBody = args.Message.Body;
+                        clientB.RequestReceived += (sender, args) => {
+                            if (!(args.Request is Message message)) return;
+
+                            messageBody = message.Body;
+
+                            args.Response = new ResponsePacket(args.Request);
+
                             eveMessageReceived.Set();
                         };
 
@@ -138,7 +144,7 @@ namespace Octgn.Communication.Chat.Test
             var serializer = new XmlSerializer();
 
             using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), serializer, new TestAuthenticationHandler())) {
-                server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
@@ -148,8 +154,8 @@ namespace Octgn.Communication.Chat.Test
                     clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
 
 
-                    clientA.InitializeChat();
-                    clientB.InitializeChat();
+                    clientA.InitializeSubscriptionModule();
+                    clientB.InitializeSubscriptionModule();
 
                     using (var eveUpdateReceived = new AutoResetEvent(false)) {
 
@@ -157,7 +163,7 @@ namespace Octgn.Communication.Chat.Test
 
                         var updateCount = 0;
 
-                        clientA.Chat().UserSubscriptionUpdated += (sender, args) => {
+                        clientA.Subscription().UserSubscriptionUpdated += (sender, args) => {
                             update = args.Subscription;
                             updateCount++;
                             eveUpdateReceived.Set();
@@ -165,7 +171,7 @@ namespace Octgn.Communication.Chat.Test
 
                         await clientA.Connect();
 
-                        var result = await clientA.Chat().RPC.AddUserSubscription("clientB", null);
+                        var result = await clientA.Subscription().RPC.AddUserSubscription("clientB", null);
 
                         Assert.NotNull(result);
 
@@ -182,7 +188,7 @@ namespace Octgn.Communication.Chat.Test
                         update.Category = "chicken";
 
                         result = null;
-                        result = await clientA.Chat().RPC.UpdateUserSubscription(update);
+                        result = await clientA.Subscription().RPC.UpdateUserSubscription(update);
 
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");
@@ -195,7 +201,7 @@ namespace Octgn.Communication.Chat.Test
                         Assert.AreEqual("chicken", update.Category);
 
                         result = null;
-                        await clientA.Chat().RPC.RemoveUserSubscription(update.Id);
+                        await clientA.Subscription().RPC.RemoveUserSubscription(update.Id);
 
                         Assert.AreEqual(UpdateType.Remove, update.UpdateType);
                         Assert.AreEqual("clientA", update.SubscriberUserId);
@@ -215,27 +221,27 @@ namespace Octgn.Communication.Chat.Test
             TestConnectionProvider userProvider = null;
 
             using (var server = new Server(new TcpListener(endpoint), userProvider = new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ChatServerModule(server, new TestChatDataProvider()));
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
                 using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
                 using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
-                    clientA.InitializeChat();
-                    clientB.InitializeChat();
+                    clientA.InitializeSubscriptionModule();
+                    clientB.InitializeSubscriptionModule();
 
                     using (var eveUpdateReceived = new AutoResetEvent(false)) {
 
                         UserUpdatedEventArgs updatedUserArgs = null;
 
-                        clientA.Chat().UserUpdated += (sender, args) => {
+                        clientA.Subscription().UserUpdated += (sender, args) => {
                             updatedUserArgs = args;
                             eveUpdateReceived.Set();
                         };
 
                         await clientA.Connect();
 
-                        var result = await clientA.Chat().RPC.AddUserSubscription("clientB", null);
+                        var result = await clientA.Subscription().RPC.AddUserSubscription("clientB", null);
 
                         Assert.NotNull(result);
 
@@ -289,6 +295,102 @@ namespace Octgn.Communication.Chat.Test
                         Assert.Fail("Request should have failed");
                     } catch (ErrorResponseException ex) {
                         Assert.AreEqual(Octgn.Communication.ErrorResponseCodes.UserOffline, ex.Code);
+                    }
+                }
+            }
+        }
+
+        [TestCase]
+        public async Task SendMessage_Fails_IfNoResponseNotHandledByReceiver() {
+            var endpoint = new IPEndPoint(IPAddress.Loopback, 7910);
+
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
+
+                server.IsEnabled = true;
+
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                    clientA.InitializeSubscriptionModule();
+                    clientB.InitializeSubscriptionModule();
+
+                    await clientA.Connect();
+                    await clientB.Connect();
+
+                    using (var eveMessageReceived = new AutoResetEvent(false)) {
+
+                        string messageBody = null;
+
+                        clientB.RequestReceived += (sender, args) => {
+                            if (!(args.Request is Message message)) return;
+
+                            messageBody = message.Body;
+
+                            // Don't set a response, this should trigger the error
+                            //args.Response = new ResponsePacket(args.Request);
+
+                            eveMessageReceived.Set();
+                        };
+
+                        var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
+
+                        if (!eveMessageReceived.WaitOne(MaxTimeout))
+                            Assert.Fail("clientB never got their message :(");
+
+
+                        try {
+                            var result = await sendTask;
+                        } catch (ErrorResponseException ex) {
+                            Assert.AreEqual(ErrorResponseCodes.UnhandledRequest, ex.Code);
+                            return;
+                        }
+
+                        Assert.Fail("SendMessage should have failed due to no response being sent back");
+                    }
+                }
+            }
+        }
+
+        [TestCase]
+        public async Task SendMessage_TimesOut_IfUserNeverReplies() {
+            var endpoint = new IPEndPoint(IPAddress.Loopback, 7910);
+
+            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
+
+                server.IsEnabled = true;
+
+                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                    clientA.InitializeSubscriptionModule();
+                    clientB.InitializeSubscriptionModule();
+
+                    await clientA.Connect();
+                    await clientB.Connect();
+
+                    using (var eveMessageReceived = new AutoResetEvent(false)) {
+
+                        clientB.RequestReceived += (sender, args) => {
+                            if (!(args.Request is Message message)) return;
+
+                            eveMessageReceived.Set();
+
+                            eveMessageReceived.WaitOne();
+                        };
+
+                        var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
+
+                        if (!eveMessageReceived.WaitOne(MaxTimeout))
+                            Assert.Fail("clientB never got their message :(");
+
+                        try {
+                            var result = await sendTask;
+                        } catch (ErrorResponseException ex) {
+                            Assert.AreEqual(ErrorResponseCodes.UserOffline, ex.Code);
+                            return;
+                        }
+
+                        Assert.Fail("SendMessage should have failed due to receiver being locked up.");
                     }
                 }
             }

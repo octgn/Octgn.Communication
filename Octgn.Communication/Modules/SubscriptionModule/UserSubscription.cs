@@ -1,6 +1,6 @@
 ﻿using Octgn.Communication.Packets;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
     public class UserSubscription
     {

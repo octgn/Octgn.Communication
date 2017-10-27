@@ -206,7 +206,7 @@ namespace Octgn.Communication
                 }
 
                 if (response == null)
-                    throw new NotImplementedException($"Packet {args.Packet} not expected.");
+                    response = new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} not expected.", false));
 
                 try {
                     await args.Connection.Response(response);

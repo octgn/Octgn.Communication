@@ -167,7 +167,7 @@ namespace Octgn.Communication
 
                                 receiverResponse = await connection.Request(newPacket);
                                 sendCount++;
-                            } catch (Exception ex) {
+                            } catch (Exception ex) when (!(ex is ErrorResponseException)){
                                 Log.Warn(ex);
                             }
                         }
@@ -226,7 +226,7 @@ namespace Octgn.Communication
             }
 
             if (response == null)
-                throw new NotImplementedException($"Packet {args.Packet} not expected.");
+                throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} not expected.", false);
 
             return response;
         }

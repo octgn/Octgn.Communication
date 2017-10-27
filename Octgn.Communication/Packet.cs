@@ -10,7 +10,7 @@ namespace Octgn.Communication
         internal abstract byte PacketTypeId { get; }
 
         public ulong? Id { get; internal set; }
-        public DateTimeOffset Sent { get; internal set; }
+        public DateTimeOffset Sent { get; set; }
         public string Destination { get; set; }
         public string Origin { get; internal set; }
 

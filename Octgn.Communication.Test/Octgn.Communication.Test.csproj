@@ -55,9 +55,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ClientTests.cs" />
+    <Compile Include="Modules\SubscriptionModule\Implementation.cs" />
     <Compile Include="Packets\AckPacketTests.cs" />
     <Compile Include="Packets\DataPacketTests.cs" />
     <Compile Include="Packets\DictionaryPacketTests.cs" />
+    <Compile Include="Packets\MessagePacketTests.cs" />
     <Compile Include="Packets\RequestPacketTests.cs" />
     <Compile Include="Packets\ResponsePacketTests.cs" />
     <Compile Include="PacketTests.cs" />

@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
     public interface IDataProvider
     {
-        string GameServerName { get; set; }
         event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
         IEnumerable<UserSubscription> GetUserSubscriptions(string userId);
         void AddUserSubscription(UserSubscription subscription);

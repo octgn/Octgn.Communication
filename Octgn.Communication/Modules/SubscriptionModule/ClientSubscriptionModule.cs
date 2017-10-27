@@ -1,26 +1,21 @@
-﻿using Octgn.Communication;
-using Octgn.Communication.Packets;
+﻿using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System;
 using System.Threading.Tasks;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
-    public class ChatClientModule : IClientModule
+    public class ClientSubscriptionModule : IClientModule
     {
         public IClientCalls RPC { get; set; }
 
-        public ChatClientModule(Client client) {
+        public ClientSubscriptionModule(Client client) {
             RPC = new ClientCalls(client);
             _requestHandler.Register(nameof(IServerCalls.UserStatusUpdated), OnUserStatusUpdated);
             _requestHandler.Register(nameof(IServerCalls.UserSubscriptionUpdated), OnUserSubscriptionUpdated);
-            _requestHandler.Register(nameof(IServerCalls.HostedGameReady), OnHostedGameReady);
-            _requestHandler.Register(nameof(Message), OnMessageReceived);
 
             if(client.Serializer is XmlSerializer xmlSerializer) {
                 xmlSerializer.Include(typeof(UserSubscription));
-                xmlSerializer.Include(typeof(HostedGame));
-                xmlSerializer.Include(typeof(HostGameRequest));
             }
         }
 
@@ -51,18 +46,6 @@ namespace Octgn.Communication.Chat
             return new ResponsePacket(packet);
         }
 
-        public event EventHandler<HostedGameReadyEventArgs> HostedGameReady;
-        private Task<ResponsePacket> OnHostedGameReady(RequestContext context, RequestPacket packet) {
-            var game = HostedGame.GetFromPacket(packet);
-
-            var args = new HostedGameReadyEventArgs {
-                Client = context.Client,
-                Game = game
-            };
-            HostedGameReady?.Invoke(this, args);
-            return Task.FromResult(new ResponsePacket(packet));
-        }
-
         private readonly RequestHandler _requestHandler = new RequestHandler();
 
         public Task HandleRequest(object sender, HandleRequestEventArgs args) {
@@ -75,11 +58,5 @@ namespace Octgn.Communication.Chat
         public Client Client { get; set; }
         public string UserId { get; set; }
         public string UserStatus { get; set; }
-    }
-
-    public class HostedGameReadyEventArgs : EventArgs
-    {
-        public Client Client { get; set; }
-        public HostedGame Game { get; set; }
     }
 }

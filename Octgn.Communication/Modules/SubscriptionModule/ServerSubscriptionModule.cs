@@ -4,13 +4,13 @@ using Octgn.Communication.Packets;
 using System.Linq;
 using Octgn.Communication.Serializers;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
-    public class ChatServerModule : IServerModule
+    public class ServerSubscriptionModule : IServerModule
     {
         private readonly IDataProvider _dataProvider;
 
-        public ChatServerModule(Server server, IDataProvider dataProvider) {
+        public ServerSubscriptionModule(Server server, IDataProvider dataProvider) {
             _dataProvider = dataProvider ?? throw new ArgumentNullException(nameof(dataProvider));
             _server = server ?? throw new ArgumentNullException(nameof(server));
 
@@ -21,13 +21,8 @@ namespace Octgn.Communication.Chat
             _requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
             _requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
 
-            _requestHandler.Register(nameof(IClientCalls.HostGame), HostGame);
-            _requestHandler.Register(nameof(IClientCalls.SignalGameStarted), SignalGameStarted);
-
             if(_server.Serializer is XmlSerializer xmlSerializer) {
                 xmlSerializer.Include(typeof(UserSubscription));
-                xmlSerializer.Include(typeof(HostedGame));
-                xmlSerializer.Include(typeof(HostGameRequest));
             }
         }
 
@@ -108,29 +103,6 @@ namespace Octgn.Communication.Chat
             _dataProvider.AddUserSubscription(sub);
 
             return Task.FromResult(new ResponsePacket(packet, sub));
-        }
-
-        private async Task<ResponsePacket> HostGame(RequestContext context, RequestPacket packet) {
-            var req = HostGameRequest.GetFromPacket(packet);
-
-            HostedGame hostedGame = null;
-            foreach(var connection in this._server.ConnectionProvider.GetConnections(_dataProvider.GameServerName)) {
-                var result = await connection.Request(packet);
-
-                hostedGame = result.As<HostedGame>();
-            }
-
-            return new ResponsePacket(packet, hostedGame);
-        }
-
-        private async Task<ResponsePacket> SignalGameStarted(RequestContext context, RequestPacket packet) {
-            var gameId = HostedGame.GetIdFromPacket(packet);
-
-            foreach(var connection in this._server.ConnectionProvider.GetConnections(_dataProvider.GameServerName)) {
-                await connection.Request(packet);
-            }
-
-            return new ResponsePacket(packet);
         }
 
         private readonly RequestHandler _requestHandler = new RequestHandler();

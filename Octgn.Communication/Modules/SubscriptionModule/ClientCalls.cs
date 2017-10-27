@@ -1,15 +1,14 @@
-﻿using Octgn.Communication;
-using Octgn.Communication.Packets;
+﻿using Octgn.Communication.Packets;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Octgn.Communication.Chat
+namespace Octgn.Communication.Modules.SubscriptionModule
 {
     public class ClientCalls : IClientCalls
     {
         private readonly Client _client;
 
-        public ClientCalls(Octgn.Communication.Client client) {
+        public ClientCalls(Client client) {
             _client = client;
         }
 
@@ -50,22 +49,6 @@ namespace Octgn.Communication.Chat
             var result = await _client.Connection.Request(packet);
 
             return result.As<UserSubscription>();
-        }
-
-        public async Task<HostedGame> HostGame(HostGameRequest request) {
-            var packet = new RequestPacket(nameof(IClientCalls.HostGame));
-            HostGameRequest.AddToPacket(packet, request);
-
-            var result = await _client.Connection.Request(packet);
-
-            return result.As<HostedGame>();
-        }
-
-        public Task SignalGameStarted(string gameId) {
-            var packet = new RequestPacket(nameof(IClientCalls.SignalGameStarted));
-            HostedGame.AddIdToPacket(packet, gameId);
-
-            return _client.Connection.Request(packet);
         }
     }
 }

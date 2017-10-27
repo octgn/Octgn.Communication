@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 
 namespace Octgn.Communication
 {
-
     public class NullLogger : ILogger
     {
 #if(DEBUG)
