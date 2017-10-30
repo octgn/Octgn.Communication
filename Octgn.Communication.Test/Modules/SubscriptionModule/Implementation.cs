@@ -438,6 +438,10 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public string GetUserStatus(string userId) {
             return OnlineUsers.GetConnections(userId).Any() ? OnlineStatus : OfflineStatus;
         }
+
+        public IEnumerable<IConnection> GetConnections() {
+            return OnlineUsers.GetConnections();
+        }
     }
 
     public class TestChatDataProvider : IDataProvider

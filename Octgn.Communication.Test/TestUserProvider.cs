@@ -31,5 +31,9 @@ namespace Octgn.Communication.Test
         public string GetUserStatus(string userId) {
             return OnlineUsers.GetConnections(userId).Any() ? OnlineStatus : OfflineStatus;
         }
+
+        public IEnumerable<IConnection> GetConnections() {
+            return OnlineUsers.GetConnections();
+        }
     }
 }

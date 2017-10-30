@@ -1,6 +1,7 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -123,6 +124,42 @@ namespace Octgn.Communication
             (Listener as IDisposable)?.Dispose();
         }
 
+        public async Task<ResponsePacket> Request(RequestPacket request, string destination = null) {
+            if (this.IsDisposed) throw new InvalidOperationException($"Could not send the request {request}, the server is disposed.");
+            if (!this.IsEnabled) throw new NotConnectedException($"Could not send the request {request}, the server is not enabled.");
+
+            var sendCount = 0;
+            ResponsePacket receiverResponse = null;
+
+            request.Destination = destination;
+
+            var connections = !string.IsNullOrWhiteSpace(destination)
+                ? ConnectionProvider.GetConnections(destination)
+                : ConnectionProvider.GetConnections();
+
+            foreach (var connection in connections) {
+                try {
+                    Log.Info($"Sending {request} to {connection}");
+
+                    receiverResponse = await connection.Request(request);
+                    sendCount++;
+                } catch (Exception ex) when (!(ex is ErrorResponseException)) {
+                    Log.Warn(ex);
+                }
+            }
+            if (sendCount < 1) {
+                Log.Warn($"Unable to deliver message to user {destination}, they are offline or the destination is invalid.");
+                throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver message to user {destination}, they are offline of the destination is invalid.", false);
+            } 
+
+            Log.Info($"Sent {request} to {sendCount} clients");
+
+            if(receiverResponse == null)
+                throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {request} routed to {destination}, but they didn't handle the request.", false);
+
+            return receiverResponse;
+        }
+
         private async void Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args)
         {
             async Task RespondPacket(ResponsePacket packet)
@@ -135,64 +172,30 @@ namespace Octgn.Communication
                     Log.Error(errorMessage, ex);
                 }
             }
-            async Task Respond(object response)
-            {
-                var responsePacket = new ResponsePacket(args.Packet, response);
-
-                try {
-                    await args.Connection.Response(responsePacket);
-                } catch (Exception ex) {
-                    var errorMessage = $"{nameof(Respond)}: Failed to send response packet {responsePacket} to {args.Connection}";
-                    Signal.Exception(ex, errorMessage);
-                    Log.Error(errorMessage, ex);
-                }
-            }
             try {
                 Log.Info($"Handling {args.Packet}");
                 try {
+                    if (args.Packet.Name == nameof(AuthenticationRequestPacket)) {
+                        var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Packet);
+
+                        await ConnectionProvider.AddConnection(args.Connection, result.UserId);
+
+                        await RespondPacket(new ResponsePacket(args.Packet, result));
+
+                        if (!result.Successful)
+                            args.Connection.IsClosed = true;
+                        return;
+                    }
+
+                    args.Packet.Origin = ConnectionProvider.GetUserId(args.Connection);
+
                     if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
-                        var fromUser = ConnectionProvider.GetUserId(args.Connection);
-
-                        args.Packet.Origin = fromUser;
-
-                        var toUserConnections = ConnectionProvider.GetConnections(args.Packet.Destination);
-
-                        var newPacket = args.Packet;
-                        var sendCount = 0;
-                        ResponsePacket receiverResponse = null;
-
-                        foreach (var connection in toUserConnections) {
-                            try {
-                                Log.Info($"Sending {newPacket} to {connection}");
-
-                                receiverResponse = await connection.Request(newPacket);
-                                sendCount++;
-                            } catch (Exception ex) when (!(ex is ErrorResponseException)){
-                                Log.Warn(ex);
-                            }
-                        }
-                        if (sendCount < 1) {
-                            Log.Warn($"Unable to deliver message to user {args.Packet.Destination}, they are offline");
-                            throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver message to user {args.Packet.Destination}, they are offline", false);
-                        } else {
-                            Log.Info($"Sent {args.Packet}");
-                            await Respond(receiverResponse.Data);
-                        }
+                        var response = await Request(args.Packet, args.Packet.Destination);
+                        await RespondPacket(response);
                     } else {
-                        if (args.Packet.Name == nameof(AuthenticationRequestPacket)) {
-                            var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Packet);
+                        ResponsePacket response = await HandleRequest(args);
 
-                            await ConnectionProvider.AddConnection(args.Connection, result.UserId);
-
-                            await RespondPacket(new ResponsePacket(args.Packet, result));
-
-                            if(!result.Successful)
-                                args.Connection.IsClosed = true;
-                        } else {
-                            ResponsePacket response = await HandleRequest(args);
-
-                            await RespondPacket(response);
-                        }
+                        await RespondPacket(response);
                     }
                 } catch (ErrorResponseException ex) {
                     var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);

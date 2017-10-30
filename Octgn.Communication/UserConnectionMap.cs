@@ -65,6 +65,10 @@ namespace Octgn.Communication
             return ret;
         }
 
+        public IEnumerable<IConnection> GetConnections() {
+            return _connectionToUsers.Select(x => x.Key).ToArray();
+        }
+
         public IEnumerable<IConnection> GetConnections(string username) {
             return _connectionToUsers
                 .Where(x => username.Equals(x.Value, StringComparison.OrdinalIgnoreCase))
