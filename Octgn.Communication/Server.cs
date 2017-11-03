@@ -150,7 +150,7 @@ namespace Octgn.Communication
             if (sendCount < 1) {
                 Log.Warn($"Unable to deliver message to user {destination}, they are offline or the destination is invalid.");
                 throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver message to user {destination}, they are offline of the destination is invalid.", false);
-            } 
+            }
 
             Log.Info($"Sent {request} to {sendCount} clients");
 
@@ -193,14 +193,14 @@ namespace Octgn.Communication
                         var response = await Request(args.Packet, args.Packet.Destination);
                         await RespondPacket(response);
                     } else {
-                        ResponsePacket response = await HandleRequest(args);
+                        var response = await HandleRequest(args);
 
                         await RespondPacket(response);
                     }
                 } catch (ErrorResponseException ex) {
                     var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
                     await RespondPacket(new ResponsePacket(args.Packet, err));
-                    if (ex.IsCritical) 
+                    if (ex.IsCritical)
                         args.Connection.IsClosed = true;
                 } catch (Exception ex) {
                     Signal.Exception(ex);

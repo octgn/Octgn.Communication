@@ -208,6 +208,7 @@ namespace Octgn.Communication
 
         protected virtual void Close(ConnectionClosedEventArgs args)
         {
+            Log.Info($"{this}:  Close");
             _closedCancellation.Cancel();
             if (_awaitingResponse.Count > 0) {
                 foreach(var item in _awaitingResponse) {

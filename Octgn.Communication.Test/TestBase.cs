@@ -29,14 +29,12 @@ namespace Octgn.Communication.Test
                     Console.WriteLine(result.ToString());
                 }
             }
-#if (DEBUG)
             Console.WriteLine("===== LOGS ======");
             while (NullLogger.LogMessages.Count > 0) {
                 if (NullLogger.LogMessages.TryDequeue(out var result)) {
                     Console.WriteLine(result.ToString());
                 }
             }
-#endif
             Assert.Zero(Signal.Exceptions.Count, "Unhandled exceptions found in Signal");
         }
 
