@@ -55,7 +55,7 @@ namespace Octgn.Communication.Test
                         try {
                             await client.Connection.Ping();
                             pingSucceeded = true;
-                        } catch (Exception ex){
+                        } catch (Exception){
 
                         }
 
