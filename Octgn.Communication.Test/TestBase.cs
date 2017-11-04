@@ -10,12 +10,11 @@ namespace Octgn.Communication.Test
         [SetUp]
         public void Setup() {
             ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(10);
-#if (DEBUG)
-            while (NullLogger.LogMessages.Count > 0) {
-                if (NullLogger.LogMessages.TryDequeue(out var result)) {
-                }
+            LoggerFactory.DefaultMethod = (c) => new InMemoryLogger(c);
+
+            while (InMemoryLogger.LogMessages.Count > 0) {
+                InMemoryLogger.LogMessages.TryDequeue(out var result);
             }
-#endif
         }
 
         [TearDown]
@@ -30,8 +29,8 @@ namespace Octgn.Communication.Test
                 }
             }
             Console.WriteLine("===== LOGS ======");
-            while (NullLogger.LogMessages.Count > 0) {
-                if (NullLogger.LogMessages.TryDequeue(out var result)) {
+            while (InMemoryLogger.LogMessages.Count > 0) {
+                if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
                     Console.WriteLine(result.ToString());
                 }
             }

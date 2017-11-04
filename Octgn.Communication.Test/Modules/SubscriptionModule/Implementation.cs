@@ -14,42 +14,9 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 {
     [TestFixture]
     [Parallelizable(ParallelScope.None)]
-    public class Implementation
+    public class Implementation : TestBase
     {
         private const int MaxTimeout = 10000;
-
-        [SetUp]
-        public void Setup() {
-            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(10);
-#if (DEBUG)
-            while (NullLogger.LogMessages.Count > 0) {
-                if (NullLogger.LogMessages.TryDequeue(out var result)) {
-                }
-            }
-#endif
-        }
-
-        [TearDown]
-        public void TearDown() {
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-
-            Console.WriteLine("===== EXCEPTIONS ======");
-            while(Signal.Exceptions.Count > 0) {
-                if(Signal.Exceptions.TryDequeue(out var result)) {
-                    Console.WriteLine(result.ToString());
-                }
-            }
-#if (DEBUG)
-            Console.WriteLine("===== LOGS ======");
-            while (NullLogger.LogMessages.Count > 0) {
-                if (NullLogger.LogMessages.TryDequeue(out var result)) {
-                    Console.WriteLine(result.ToString());
-                }
-            }
-#endif
-            Assert.Zero(Signal.Exceptions.Count, "Unhandled exceptions found in Signal");
-        }
 
         [TestCase]
         public async Task FailedAuthenticationCausesServerToDisconnectClient() {
