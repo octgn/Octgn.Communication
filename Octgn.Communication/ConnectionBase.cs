@@ -120,6 +120,7 @@ namespace Octgn.Communication
                 StampPacketBeforeSend(packet);
                 _awaitingResponse.AddOrUpdate(packet.Id.Value, tcs, (a, b) => tcs);
                 await SendPacket(packet);
+                await tcs.Task;
 
                 var response = tcs.Task.Result;
                 response.Verify();
