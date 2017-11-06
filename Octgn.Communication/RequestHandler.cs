@@ -17,8 +17,8 @@ namespace Octgn.Communication
             _routes.Add(requestName, call);
         }
 
-        public async Task HandleRequest(object sender, HandleRequestEventArgs args) {
-            var packet = args.Packet;
+        public async Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+            var packet = args.Request;
 
             var context = new RequestContext {
                 Connection = args.Connection,

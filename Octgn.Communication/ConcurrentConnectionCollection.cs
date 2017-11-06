@@ -39,8 +39,8 @@ namespace Octgn.Communication
             }
         }
 
-        private void Item_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
-            this.RequestReceived?.Invoke(sender, args);
+        private Task Item_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
+            return this.RequestReceived?.Invoke(sender, args);
         }
 
         /// <summary>

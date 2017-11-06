@@ -28,11 +28,14 @@ namespace Octgn.Communication
         }
     }
 
-    public delegate void RequestPacketReceived(object sender, RequestPacketReceivedEventArgs args);
+    public delegate Task RequestPacketReceived(object sender, RequestPacketReceivedEventArgs args);
 
     public class RequestPacketReceivedEventArgs : EventArgs
     {
+        public Client Client { get; set; }
         public IConnection Connection { get; set; }
-        public RequestPacket Packet { get; set; }
+        public bool IsHandled { get; set; }
+        public RequestPacket Request { get; set; }
+        public ResponsePacket Response { get; set; }
     }
 }

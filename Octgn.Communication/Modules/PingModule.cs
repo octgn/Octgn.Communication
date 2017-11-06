@@ -12,7 +12,7 @@ namespace Octgn.Communication.Modules
             _requestHandler.Register(nameof(ICalls.Ping), OnPing);
         }
 
-        public Task HandleRequest(object sender, HandleRequestEventArgs args) {
+        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
         }
         private Task<ResponsePacket> OnPing(RequestContext context, RequestPacket packet) {

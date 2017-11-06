@@ -80,6 +80,7 @@ namespace Octgn.Communication.Test
                     client.RequestReceived += (_, args) => {
                         args.Response = new ResponsePacket(args.Request);
                         tcs.SetResult(args.Request);
+                        return Task.CompletedTask;
                     };
 
                     var request = new RequestPacket("test");

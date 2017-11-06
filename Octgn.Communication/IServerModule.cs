@@ -5,7 +5,7 @@ namespace Octgn.Communication
 {
     public interface IServerModule
     {
-        Task HandleRequest(object sender, HandleRequestEventArgs args);
+        Task HandleRequest(object sender, RequestPacketReceivedEventArgs args);
         Task UserStatucChanged(object sender, UserStatusChangedEventArgs e);
     }
 }

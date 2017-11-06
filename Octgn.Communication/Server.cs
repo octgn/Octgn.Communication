@@ -160,78 +160,48 @@ namespace Octgn.Communication
             return receiverResponse;
         }
 
-        private async void Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args)
+        private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args)
         {
-            async Task RespondPacket(ResponsePacket packet)
-            {
-                try {
-                    await args.Connection.Response(packet);
-                } catch (Exception ex) {
-                    var errorMessage = $"{nameof(RespondPacket)}: Failed to send response packet {packet} to {args.Connection}";
-                    Signal.Exception(ex, errorMessage);
-                    Log.Error(errorMessage, ex);
-                }
-            }
+            Log.Info($"Handling {args.Request}");
             try {
-                Log.Info($"Handling {args.Packet}");
-                try {
-                    if (args.Packet.Name == nameof(AuthenticationRequestPacket)) {
-                        var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Packet);
+                if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
+                    var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Request);
 
-                        await ConnectionProvider.AddConnection(args.Connection, result.UserId);
+                    await ConnectionProvider.AddConnection(args.Connection, result.UserId);
 
-                        await RespondPacket(new ResponsePacket(args.Packet, result));
+                    args.Response = new ResponsePacket(args.Request, result);
+                    args.IsHandled = true;
 
-                        if (!result.Successful)
-                            args.Connection.IsClosed = true;
-                        return;
-                    }
-
-                    args.Packet.Origin = ConnectionProvider.GetUserId(args.Connection);
-
-                    if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
-                        var response = await Request(args.Packet, args.Packet.Destination);
-                        await RespondPacket(response);
-                    } else {
-                        var response = await HandleRequest(args);
-
-                        await RespondPacket(response);
-                    }
-                } catch (ErrorResponseException ex) {
-                    var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
-                    await RespondPacket(new ResponsePacket(args.Packet, err));
-                    if (ex.IsCritical)
+                    if (!result.Successful)
                         args.Connection.IsClosed = true;
-                } catch (Exception ex) {
-                    Signal.Exception(ex);
 
-                    var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "", true);
-                    await RespondPacket(new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, ex.Message, true)));
-
-                    args.Connection.IsClosed = true;
+                    return;
                 }
+
+                args.Request.Origin = ConnectionProvider.GetUserId(args.Connection);
+
+                if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
+                    args.Response = await Request(args.Request, args.Request.Destination);
+                    args.IsHandled = true;
+                } else {
+                    foreach (var module in _serverModules) {
+                        await module.HandleRequest(this, args);
+                        if (args.IsHandled) break;
+                    }
+                }
+            } catch (ErrorResponseException ex) {
+                var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
+                args.Response = new ResponsePacket(args.Request, err);
+                if (ex.IsCritical)
+                    args.Connection.IsClosed = true;
             } catch (Exception ex) {
-                // This also catches any exceptions raised by the exception handlers above because they try and send the error back to the user.
                 Signal.Exception(ex);
+
+                var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "", true);
+                args.Response = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, ex.Message, true));
+
                 args.Connection.IsClosed = true;
             }
-        }
-
-        protected async Task<ResponsePacket> HandleRequest(RequestPacketReceivedEventArgs args) {
-            ResponsePacket response = null;
-            var handlerArgs = new HandleRequestEventArgs(args);
-            foreach (var module in _serverModules) {
-                await module.HandleRequest(this, handlerArgs);
-                if (handlerArgs.IsHandled || handlerArgs.Response != null) {
-                    response = handlerArgs.Response;
-                    break;
-                }
-            }
-
-            if (response == null)
-                throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} not expected.", false);
-
-            return response;
         }
     }
 }

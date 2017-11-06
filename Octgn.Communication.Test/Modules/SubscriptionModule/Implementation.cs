@@ -36,7 +36,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                 // Need to handle the 'hello' packet we send
                 serverModule.Request += (sender, args) => {
-                    if (args.Packet.Name == "hello")
+                    if (args.Request.Name == "hello")
                         args.IsHandled = true;
                 };
 
@@ -82,13 +82,15 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         string messageBody = null;
 
                         clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return;
+                            if (!(args.Request is Message message)) return Task.CompletedTask;
 
                             messageBody = message.Body;
 
                             args.Response = new ResponsePacket(args.Request);
 
                             eveMessageReceived.Set();
+
+                            return Task.CompletedTask;
                         };
 
                         var result = await clientA.SendMessage(clientB.UserId, "asdf");
@@ -289,7 +291,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         string messageBody = null;
 
                         clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return;
+                            if (!(args.Request is Message message)) return Task.CompletedTask;
 
                             messageBody = message.Body;
 
@@ -297,6 +299,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                             //args.Response = new ResponsePacket(args.Request);
 
                             eveMessageReceived.Set();
+                            return Task.CompletedTask;
                         };
 
                         var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
@@ -338,11 +341,13 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
 
                         clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return;
+                            if (!(args.Request is Message message)) return Task.CompletedTask;
 
                             eveMessageReceived.Set();
 
                             eveMessageReceived.WaitOne();
+
+                            return Task.CompletedTask;
                         };
 
                         var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
@@ -514,9 +519,9 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
     public class TestServerModule : IServerModule
     {
-        public event EventHandler<HandleRequestEventArgs> Request;
+        public event EventHandler<RequestPacketReceivedEventArgs> Request;
 
-        public Task HandleRequest(object sender, HandleRequestEventArgs args) {
+        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
             Request?.Invoke(sender, args);
             return Task.CompletedTask;
         }

@@ -48,7 +48,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
         private readonly RequestHandler _requestHandler = new RequestHandler();
 
-        public Task HandleRequest(object sender, HandleRequestEventArgs args) {
+        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
         }
     }

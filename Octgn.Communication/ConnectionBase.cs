@@ -18,8 +18,7 @@ namespace Octgn.Communication
 
         private static int _nextSeed = 0;
 
-        public bool Equals(IConnection other)
-        {
+        public bool Equals(IConnection other) {
             if (other == null || this == null) return false;
             return other.ConnectionId == this.ConnectionId;
         }
@@ -32,8 +31,7 @@ namespace Octgn.Communication
         private bool _calledRequestReceived;
         private readonly object L_STARTEDREADINGPACKETS = new object();
 
-        public virtual async Task Connect()
-        {
+        public virtual async Task Connect() {
             await Task.Run(() => {
                 lock (L_STARTEDREADINGPACKETS) {
                     _calledConnect = true;
@@ -72,47 +70,68 @@ namespace Octgn.Communication
 
         protected abstract Task ReadPacketsAsync();
 
-        protected async Task FirePacketReceived(Packet packet)
-        {
+        protected async Task FirePacketReceived(Packet packet) {
             Log.TracePacketReceived(this, packet);
 
-            var ack = new Ack(packet);
+            switch (packet) {
+                case Ack ack: {
+                        if (_awaitingAck.TryGetValue(ack.PacketId, out TaskCompletionSource<Ack> tcs))
+                            tcs.SetResult(ack);
+                        else
+                            throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
 
-            if (packet is Ack) {
-                ack = null;
-                var ackPacket = packet as Ack;
-                if (_awaitingAck.TryGetValue(ackPacket.PacketId, out TaskCompletionSource<Ack> tcs)) {
-                    tcs.SetResult(ackPacket);
-                } else Log.Warn($"{this}: Ack: Could not find packet #{ackPacket.PacketId}");
-            } else if (packet is RequestPacket) {
-                if (_requestReceived == null)
-                    throw new InvalidOperationException("Receiving Requests, but nothing is reading them.");
+                        break;
+                    }
 
-                _requestReceived?.Invoke(this, new RequestPacketReceivedEventArgs {
-                    Connection = this,
-                    Packet = packet as RequestPacket
-                });
-            } else if (packet is ResponsePacket) {
-                var resp = packet as ResponsePacket;
-                if (_awaitingResponse.TryGetValue(resp.InResponseTo, out TaskCompletionSource<ResponsePacket> tcs)) {
-                    tcs.SetResult(resp);
-                } else Log.Warn($"{this}: Response: Could not find packet #{resp.InResponseTo}");
-            } else throw new NotImplementedException($"{packet.GetType().Name} packet not supported.");
+                case RequestPacket requestPacket: {
+                        if (_requestReceived == null)
+                            throw new InvalidOperationException("Receiving Requests, but nothing is reading them.");
 
-            if (ack != null) {
-                StampPacketBeforeSend(ack);
-                await SendPacket(ack);
+                        var args = new RequestPacketReceivedEventArgs() {
+                            Connection = this,
+                            Request = requestPacket
+                        };
+
+                        await _requestReceived?.Invoke(this, args);
+
+                        var unhandledRequestResponse = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Request} not expected.", false));
+
+                        var response = args.Response
+                            ?? (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Request, null)) ;
+
+                        StampPacketBeforeSend(response);
+                        await SendPacket(response);
+
+                        break;
+                    }
+
+                case ResponsePacket responsePacket: {
+                        if (_awaitingResponse.TryGetValue(responsePacket.InResponseTo, out TaskCompletionSource<ResponsePacket> tcs)) {
+                            tcs.SetResult(responsePacket);
+                        } else {
+                            Log.Warn($"{this}: Response: Could not find packet #{responsePacket.InResponseTo}");
+                        }
+
+                        var ack = new Ack(responsePacket);
+                        if (_awaitingAck.TryGetValue(ack.PacketId, out TaskCompletionSource<Ack> tcsAck))
+                            tcsAck.SetResult(ack);
+                        else
+                            throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
+
+                        break;
+                    }
+
+                default:
+                    throw new NotImplementedException($"{packet.GetType().Name} packet not supported.");
             }
         }
-
 
         private readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<Ack>> _awaitingAck = new System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<Ack>>();
 
         #region RPC
 
         private readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<ResponsePacket>> _awaitingResponse = new System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<ResponsePacket>>();
-        public async Task<ResponsePacket> Request(RequestPacket packet)
-        {
+        public async Task<ResponsePacket> Request(RequestPacket packet) {
             if (IsClosed) throw new InvalidOperationException("Connection is closed.");
             TaskCompletionSource<ResponsePacket> tcs = null;
             try {
@@ -132,8 +151,7 @@ namespace Octgn.Communication
             }
         }
 
-        public async Task Response(ResponsePacket packet)
-        {
+        public async Task Response(ResponsePacket packet) {
             if (IsClosed) throw new InvalidOperationException("Connection is closed.");
             StampPacketBeforeSend(packet);
             await SendPacket(packet);
@@ -142,14 +160,12 @@ namespace Octgn.Communication
         #endregion
 
         private ulong _nextPacketId;
-        private void StampPacketBeforeSend(Packet packet)
-        {
+        private void StampPacketBeforeSend(Packet packet) {
             packet.Id = _nextPacketId++;
             packet.Sent = DateTimeOffset.Now;
         }
 
-        protected virtual async Task SendPacket(Packet packet)
-        {
+        protected virtual async Task SendPacket(Packet packet) {
             if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
 
             Log.TracePacketSent(this, packet);
@@ -207,12 +223,11 @@ namespace Octgn.Communication
             _closedCancellationTask = _closedCancellationTaskSource.Task;
         }
 
-        protected virtual void Close(ConnectionClosedEventArgs args)
-        {
+        protected virtual void Close(ConnectionClosedEventArgs args) {
             Log.Info($"{this}:  Close");
             _closedCancellation.Cancel();
             if (_awaitingResponse.Count > 0) {
-                foreach(var item in _awaitingResponse) {
+                foreach (var item in _awaitingResponse) {
                     item.Value.TrySetCanceled();
                 }
                 Log.Warn($"{this}: {_awaitingResponse.Count} responses never received.");
@@ -228,12 +243,11 @@ namespace Octgn.Communication
             }
         }
 
-        public virtual void Dispose()
-        {
+        public virtual void Dispose() {
             Log.Info($"{this}:  Dispose");
             _closedCancellationTaskSource?.Dispose();
             if (_awaitingResponse.Count > 0) {
-                foreach(var item in _awaitingResponse) {
+                foreach (var item in _awaitingResponse) {
                     item.Value.TrySetCanceled();
                 }
                 Log.Warn($"{this}: {_awaitingResponse.Count} responses never received.");

@@ -171,61 +171,25 @@ namespace Octgn.Communication
             return Connection.Request(request);
         }
 
-        public event RequestReceived RequestReceived;
-        protected ResponsePacket FireRequestReceived(RequestPacket packet)
-        {
-            var requestArgs = new RequestReceivedEventArgs {
-                Client = this,
-                Request = packet
-            };
+        public event RequestPacketReceived RequestReceived;
 
+        private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
             try {
-                RequestReceived?.Invoke(this, requestArgs);
-            } catch (Exception ex) {
-                Signal.Exception(ex, nameof(FireRequestReceived));
-            }
+                args.Client = this;
 
-            return requestArgs.Response;
-        }
-
-        private async void Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
-            try {
-                ResponsePacket response = null;
-
-                var handlerArgs = new HandleRequestEventArgs(args);
                 foreach (var handler in _clientModules.Values) {
-                    await handler.HandleRequest(this, handlerArgs);
-                    if (handlerArgs.IsHandled || handlerArgs.Response != null) {
-                        response = handlerArgs.Response;
+                    await handler.HandleRequest(this, args);
+                    if (args.IsHandled)
                         break;
-                    }
                 }
 
-                if(response == null) {
-                    response = FireRequestReceived(args.Packet);
-                }
-
-                if (response == null)
-                    response = new ResponsePacket(args.Packet, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} not expected.", false));
-
-                try {
-                    await args.Connection.Response(response);
-                } catch (TimeoutException) {
-                    Log.Error($"{nameof(Client)}: Failed to send response packet {args.Packet} to {args.Connection}");
+                if(!args.IsHandled) {
+                    RequestReceived?.Invoke(this, args);
                 }
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
         }
-    }
-
-    public delegate void RequestReceived(object sender, RequestReceivedEventArgs args);
-
-    public class RequestReceivedEventArgs : EventArgs
-    {
-        public Client Client { get; set; }
-        public RequestPacket Request { get; set; }
-        public ResponsePacket Response { get; set; }
     }
 
     public delegate void Connected(object sender, ConnectedEventArgs args);
