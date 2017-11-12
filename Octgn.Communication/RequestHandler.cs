@@ -1,40 +1,39 @@
-﻿using System;
+﻿using Octgn.Communication.Packets;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Octgn.Communication.Packets;
 
 namespace Octgn.Communication
 {
     public sealed class RequestHandler
     {
-        private readonly Dictionary<string,Func<RequestContext, RequestPacket,Task<ResponsePacket>>> _routes;
+        private readonly Dictionary<string, RequestReceived> _routes;
 
         public RequestHandler() {
-            _routes = new Dictionary<string, Func<RequestContext, RequestPacket, Task<ResponsePacket>>>();
+            _routes = new Dictionary<string, RequestReceived>();
         }
 
-        public void Register(string requestName, Func<RequestContext, RequestPacket, Task<ResponsePacket>> call) {
+        public void Register(string requestName, RequestReceived call) {
             _routes.Add(requestName, call);
         }
 
-        public async Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+        public async Task HandleRequest(object sender, RequestReceivedEventArgs args) {
             var packet = args.Request;
 
-            var context = new RequestContext {
-                Connection = args.Connection,
-                Server = sender as Server,
-                Client = sender as Client
-            };
-            if(context.Server != null) {
-                context.UserId = context.Server.ConnectionProvider.GetUserId(args.Connection);
+            if(args.Context.Server != null) {
+                args.Context.UserId = args.Context.Server.ConnectionProvider.GetUserId(args.Context.Connection);
             }
 
-            if (context.Server == null && context.Client == null)
+            if (args.Context.Server == null && args.Context.Client == null)
                 throw new ArgumentException($"Sender must be type of {nameof(Server)} or {nameof(Client)}", nameof(sender));
 
             if (_routes.TryGetValue(packet.Name, out var call)) {
-                args.Response = await call(context, packet);
-                args.IsHandled = true;
+                var task = call(sender, args);
+                await task;
+                if(task is Task<ResponsePacket> responseTask) {
+                    args.Response = responseTask.Result;
+                    args.IsHandled = true;
+                }
             }
         }
     }

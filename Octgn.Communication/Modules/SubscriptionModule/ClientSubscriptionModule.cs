@@ -21,34 +21,34 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
         public event EventHandler<UserUpdatedEventArgs> UserUpdated;
 
-        private Task<ResponsePacket> OnUserStatusUpdated(RequestContext context, RequestPacket packet) {
-            var args = new UserUpdatedEventArgs {
-                Client = context.Client,
-                UserId = (string)packet["userId"],
-                UserStatus = (string)packet["userStatus"]
+        private Task OnUserStatusUpdated(object sender, RequestReceivedEventArgs args) {
+            var userUpdateArgs = new UserUpdatedEventArgs {
+                Client = args.Context.Client,
+                UserId = (string)args.Request["userId"],
+                UserStatus = (string)args.Request["userStatus"]
             };
-            UserUpdated?.Invoke(this, args);
-            return Task.FromResult(new ResponsePacket(packet));
+            UserUpdated?.Invoke(this, userUpdateArgs);
+            return Task.FromResult(new ResponsePacket(args.Request));
         }
 
         public event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
-        private async Task<ResponsePacket> OnUserSubscriptionUpdated(RequestContext context, RequestPacket packet) {
-            var subscription = UserSubscription.GetFromPacket(packet);
+        private async Task OnUserSubscriptionUpdated(object sender, RequestReceivedEventArgs args) {
+            var subscription = UserSubscription.GetFromPacket(args.Request);
 
-            var args = new UserSubscriptionUpdatedEventArgs {
-                Client = context.Client,
+            var usubArgs = new UserSubscriptionUpdatedEventArgs {
+                Client = args.Context.Client,
                 Subscription = subscription
             };
-            UserSubscriptionUpdated?.Invoke(this, args);
+            UserSubscriptionUpdated?.Invoke(this, usubArgs);
             if(subscription.UpdateType == UpdateType.Add) {
-                await OnUserStatusUpdated(context, packet);
+                await OnUserStatusUpdated(sender, args);
             }
-            return new ResponsePacket(packet);
+            return new ResponsePacket(args.Request);
         }
 
         private readonly RequestHandler _requestHandler = new RequestHandler();
 
-        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
         }
     }

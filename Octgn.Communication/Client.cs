@@ -175,16 +175,17 @@ namespace Octgn.Communication
         }
 
 #pragma warning disable RCS1159 // Use EventHandler<T>.
-        public event RequestPacketReceived RequestReceived;
+        public event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
 
-        private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
+        private async Task Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
 
             try {
-                args.Client = this;
+                args.Context.Client = this;
+                args.Context.UserId = this.UserId;
 
                 foreach (var handler in _clientModules.Values) {
                     await handler.HandleRequest(this, args);

@@ -498,9 +498,9 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
     public class TestServerModule : IServerModule
     {
-        public event EventHandler<RequestPacketReceivedEventArgs> Request;
+        public event EventHandler<RequestReceivedEventArgs> Request;
 
-        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
             Request?.Invoke(sender, args);
             return Task.CompletedTask;
         }

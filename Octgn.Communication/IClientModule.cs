@@ -5,6 +5,6 @@ namespace Octgn.Communication
 
     public interface IClientModule
     {
-        Task HandleRequest(object sender, RequestPacketReceivedEventArgs args);
+        Task HandleRequest(object sender, RequestReceivedEventArgs args);
     }
 }

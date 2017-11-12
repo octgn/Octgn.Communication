@@ -22,7 +22,7 @@ namespace Octgn.Communication.Test
             remove => _connection.ConnectionClosed -= value;
         }
 
-        public event RequestPacketReceived RequestReceived {
+        public event RequestReceived RequestReceived {
             add => _connection.RequestReceived += value;
             remove => _connection.RequestReceived -= value;
         }

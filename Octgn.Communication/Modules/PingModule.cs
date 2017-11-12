@@ -12,11 +12,11 @@ namespace Octgn.Communication.Modules
             _requestHandler.Register(nameof(ICalls.Ping), OnPing);
         }
 
-        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
         }
-        private Task<ResponsePacket> OnPing(RequestContext context, RequestPacket packet) {
-            return Task.FromResult(new ResponsePacket(packet, DateTime.UtcNow));
+        private Task OnPing(object sender, RequestReceivedEventArgs args) {
+            return Task.FromResult(new ResponsePacket(args.Request, DateTime.UtcNow));
         }
 
         public Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {

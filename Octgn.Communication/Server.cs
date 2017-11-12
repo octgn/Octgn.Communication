@@ -163,18 +163,20 @@ namespace Octgn.Communication
             return receiverResponse;
         }
 
-        private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args)
+        private async Task Connection_RequestReceived(object sender, RequestReceivedEventArgs args)
         {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
 
-            Log.Info($"{args.Connection}: Handling {args.Request}");
+            args.Context.Server = this;
+
+            Log.Info($"{args.Context}: Handling {args.Request}");
             try {
                 if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
-                    var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Request);
+                    var result = await _authenticationHandler.Authenticate(this, args.Context.Connection, (AuthenticationRequestPacket)args.Request);
 
-                    await ConnectionProvider.AddConnection(args.Connection, result.UserId);
+                    await ConnectionProvider.AddConnection(args.Context.Connection, result.UserId);
 
                     args.Response = new ResponsePacket(args.Request, result);
                     args.IsHandled = true;
@@ -182,7 +184,7 @@ namespace Octgn.Communication
                     return;
                 }
 
-                args.Request.Origin = ConnectionProvider.GetUserId(args.Connection);
+                args.Context.UserId = args.Request.Origin = ConnectionProvider.GetUserId(args.Context.Connection);
 
                 if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
                     args.Response = await Request(args.Request, args.Request.Destination);

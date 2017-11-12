@@ -61,57 +61,58 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             }
         }
 
-        private Task<ResponsePacket> OnGetUserSubscriptions(RequestContext context, RequestPacket packet) {
-            var subs = _dataProvider.GetUserSubscriptions(context.UserId).ToArray();
-            return Task.FromResult(new ResponsePacket(packet, subs));
+        private Task OnGetUserSubscriptions(object sender, RequestReceivedEventArgs args) {
+            var subs = _dataProvider.GetUserSubscriptions(args.Context.UserId).ToArray();
+            return Task.FromResult(new ResponsePacket(args.Request, subs));
         }
 
-        private Task<ResponsePacket> OnUpdateUserSubscription(RequestContext context, RequestPacket packet) {
-            var sub = UserSubscription.GetFromPacket(packet);
+        private Task OnUpdateUserSubscription(object sender, RequestReceivedEventArgs args) {
+            var sub = UserSubscription.GetFromPacket(args.Request);
 
             // No other values are valid, and could potentially be malicious.
-            sub.SubscriberUserId = context.UserId;
+            sub.SubscriberUserId = args.Context.UserId;
 
             _dataProvider.UpdateUserSubscription(sub);
-            return Task.FromResult(new ResponsePacket(packet, sub));
+
+            return Task.FromResult(new ResponsePacket(args.Request, sub));
         }
 
-        private Task<ResponsePacket> OnRemoveUserSubscription(RequestContext context, RequestPacket packet) {
-            var subid = UserSubscription.GetIdFromPacket(packet);
+        private Task OnRemoveUserSubscription(object sender, RequestReceivedEventArgs args) {
+            var subid = UserSubscription.GetIdFromPacket(args.Request);
 
             if (string.IsNullOrWhiteSpace(subid)) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
-                return Task.FromResult(new ResponsePacket(packet, errorData));
+                return Task.FromResult(new ResponsePacket(args.Request, errorData));
             }
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.SubscriberUserId != context.UserId) {
+            if (sub?.SubscriberUserId != args.Context.UserId) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
-                return Task.FromResult(new ResponsePacket(packet, errorData));
+                return Task.FromResult(new ResponsePacket(args.Request, errorData));
             }
 
             _dataProvider.RemoveUserSubscription(sub.Id);
 
-            return Task.FromResult(new ResponsePacket(packet));
+            return Task.FromResult(new ResponsePacket(args.Request));
         }
 
-        private Task<ResponsePacket> OnAddUserSubscription(RequestContext context, RequestPacket packet) {
-            var sub = UserSubscription.GetFromPacket(packet);
+        private Task OnAddUserSubscription(object sender, RequestReceivedEventArgs args) {
+            var sub = UserSubscription.GetFromPacket(args.Request);
 
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.SubscriberUserId = context.UserId;
+            sub.SubscriberUserId = args.Context.UserId;
 
             _dataProvider.AddUserSubscription(sub);
 
-            return Task.FromResult(new ResponsePacket(packet, sub));
+            return Task.FromResult(new ResponsePacket(args.Request, sub));
         }
 
         private readonly RequestHandler _requestHandler = new RequestHandler();
 
-        public Task HandleRequest(object sender, RequestPacketReceivedEventArgs args) {
+        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
             return _requestHandler.HandleRequest(sender, args);
         }
 

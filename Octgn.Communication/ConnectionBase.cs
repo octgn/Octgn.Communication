@@ -47,7 +47,7 @@ namespace Octgn.Communication
             });
         }
 
-        event RequestPacketReceived IConnection.RequestReceived {
+        event RequestReceived IConnection.RequestReceived {
             add {
                 _requestReceived += value;
                 lock (_startedReadingPacketsLock) {
@@ -63,7 +63,7 @@ namespace Octgn.Communication
             remove => _requestReceived -= value;
         }
 
-        private event RequestPacketReceived _requestReceived;
+        private event RequestReceived _requestReceived;
 
         private Task _readPacketsTask;
 
@@ -116,9 +116,11 @@ namespace Octgn.Communication
                     if (_requestReceived == null)
                         throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
 
-                    var args = new RequestPacketReceivedEventArgs() {
-                        Connection = this,
-                        Request = requestPacket
+                    var args = new RequestReceivedEventArgs() {
+                        Request = requestPacket,
+                        Context = new RequestContext {
+                            Connection = this
+                        }
                     };
 
                     await _requestReceived?.Invoke(this, args);
@@ -263,7 +265,7 @@ namespace Octgn.Communication
             _closedCancellationTaskSource?.Dispose();
 
 #pragma warning disable IDE0007 // Use implicit type
-            foreach (RequestPacketReceived callback in (_requestReceived?.GetInvocationList() ?? Enumerable.Empty<Delegate>())) {
+            foreach (RequestReceived callback in (_requestReceived?.GetInvocationList() ?? Enumerable.Empty<Delegate>())) {
 #pragma warning restore IDE0007 // Use implicit type
                 _requestReceived -= callback;
             }

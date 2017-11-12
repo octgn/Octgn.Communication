@@ -41,7 +41,7 @@ namespace Octgn.Communication
             }
         }
 
-        private Task Item_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
+        private Task Item_RequestReceived(object sender, RequestReceivedEventArgs args) {
             return this.RequestReceived?.Invoke(sender, args);
         }
 
@@ -87,7 +87,7 @@ namespace Octgn.Communication
             }
         }
 
-        public event RequestPacketReceived RequestReceived;
+        public event RequestReceived RequestReceived;
 
         public bool Equals(IConnection other) {
             return ReferenceEquals(this, other);
