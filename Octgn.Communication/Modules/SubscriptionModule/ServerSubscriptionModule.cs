@@ -125,6 +125,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
                     try {
                         await connection.Request(packet);
+                    } catch (NotConnectedException ex) {
                     } catch (DisconnectedException ex) {
                     }
                 }
