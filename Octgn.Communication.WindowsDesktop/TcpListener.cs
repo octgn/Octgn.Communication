@@ -6,7 +6,9 @@ namespace Octgn.Communication
 {
     public class TcpListener : IConnectionListener, IDisposable
     {
+#pragma warning disable IDE1006 // Naming Styles
         private readonly static ILogger Log = LoggerFactory.Create(typeof(TcpListener));
+#pragma warning restore IDE1006 // Naming Styles
 
         public IPEndPoint EndPoint { get; }
 
@@ -30,7 +32,9 @@ namespace Octgn.Communication
                     _listener.Stop();
                 }
             }
-        } private bool _isEnabled;
+        }
+
+        private bool _isEnabled;
 
         private async void ListenForConnectionAsync() {
             try {
@@ -38,7 +42,6 @@ namespace Octgn.Communication
                     TcpClient result = null;
                     try {
                         result = await _listener.AcceptTcpClientAsync();
-
                     } catch (ObjectDisposedException) {
                         break;
                     }
@@ -62,15 +65,43 @@ namespace Octgn.Communication
 
         private IConnection CreateConnection(TcpClient client)
         {
-            return ConnectionCreator(client);
+            return _connectionCreator(client);
         }
 
-        internal Func<TcpClient,IConnection> ConnectionCreator = (client) => new TcpConnection(client);
+        private readonly Func<TcpClient,IConnection> _connectionCreator = (client) => new TcpConnection(client);
 
         public event ConnectionCreated ConnectionCreated;
 
-        public void Dispose() {
-            _listener.Stop();
+        #region IDisposable Support
+        private bool _disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing) {
+            if (!_disposedValue) {
+                if (disposing) {
+                    // TODO: dispose managed state (managed objects).
+                    _listener.Stop();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                _disposedValue = true;
+            }
         }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~TcpListener() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose() {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }

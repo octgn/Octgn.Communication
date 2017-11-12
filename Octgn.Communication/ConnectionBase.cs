@@ -10,7 +10,9 @@ namespace Octgn.Communication
 {
     public abstract class ConnectionBase : IConnection, IDisposable
     {
-        private static ILogger Log = LoggerFactory.Create(nameof(ConnectionBase));
+#pragma warning disable IDE1006 // Naming Styles
+        private static readonly ILogger Log = LoggerFactory.Create(nameof(ConnectionBase));
+#pragma warning restore IDE1006 // Naming Styles
         public static TimeSpan WaitForResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         #region Identification
@@ -29,11 +31,11 @@ namespace Octgn.Communication
         private bool _startedReadingPackets;
         private bool _calledConnect;
         private bool _calledRequestReceived;
-        private readonly object L_STARTEDREADINGPACKETS = new object();
+        private readonly object _startedReadingPacketsLock = new object();
 
         public virtual async Task Connect() {
             await Task.Run(() => {
-                lock (L_STARTEDREADINGPACKETS) {
+                lock (_startedReadingPacketsLock) {
                     _calledConnect = true;
                     if (!_calledRequestReceived) return;
 
@@ -48,7 +50,7 @@ namespace Octgn.Communication
         event RequestPacketReceived IConnection.RequestReceived {
             add {
                 _requestReceived += value;
-                lock (L_STARTEDREADINGPACKETS) {
+                lock (_startedReadingPacketsLock) {
                     _calledRequestReceived = true;
                     if (!_calledConnect && !IsConnected) return;
 
@@ -88,7 +90,7 @@ namespace Octgn.Communication
             async Task Respond(ResponsePacket response) {
                 if (response == null) throw new ArgumentNullException(nameof(response));
 
-                bool isCritical = response.Data is ErrorResponseData erd
+                var isCritical = response.Data is ErrorResponseData erd
                     && erd.IsCritical;
 
                 if (isCritical)
@@ -110,7 +112,6 @@ namespace Octgn.Communication
             Log.TracePacketReceived(this, packet);
 
             switch (packet) {
-
                 case RequestPacket requestPacket:
                     if (_requestReceived == null)
                         throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
@@ -139,7 +140,9 @@ namespace Octgn.Communication
                     break;
 
                 default:
+#pragma warning disable RCS1079 // Throwing of new NotImplementedException.
                     throw new NotImplementedException($"{this}: {packet.GetType().Name} packet not supported.");
+#pragma warning restore RCS1079 // Throwing of new NotImplementedException.
             }
         }
 
@@ -222,19 +225,20 @@ namespace Octgn.Communication
                 ConnectionClosed?.Invoke(this, args);
             }
         }
+
         private int _isClosedCounter = 0;
 
-        public event ConnectionClosed ConnectionClosed;
+        public event EventHandler<ConnectionClosedEventArgs> ConnectionClosed;
 
-        private CancellationTokenSource _closedCancellation = new CancellationTokenSource();
-        private CancellationTokenTaskSource<object> _closedCancellationTaskSource;
-        private Task _closedCancellationTask;
+        private readonly CancellationTokenSource _closedCancellation = new CancellationTokenSource();
+        private readonly CancellationTokenTaskSource<object> _closedCancellationTaskSource;
+        private readonly Task _closedCancellationTask;
 
         protected CancellationToken ClosedCancellationToken =>  _closedCancellation.Token;
 
         public ISerializer Serializer { get; set; }
 
-        public ConnectionBase() {
+        protected ConnectionBase() {
             _closedCancellationTaskSource = new CancellationTokenTaskSource<object>(_closedCancellation.Token);
             _closedCancellationTask = _closedCancellationTaskSource.Task;
         }
@@ -248,7 +252,7 @@ namespace Octgn.Communication
             Log.Info($"{this}:  Dispose");
             _closedCancellation.Cancel();
 
-            bool timedOut = false;
+            var timedOut = false;
             try {
                 timedOut = _readPacketsTask?.Wait(ConnectionBase.WaitForResponseTimeout) == false;
             } catch { /* this exception is caught above */ }

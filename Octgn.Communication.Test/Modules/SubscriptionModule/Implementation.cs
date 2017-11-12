@@ -51,7 +51,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     } catch (DisconnectedException) { }
                     catch (NotConnectedException) { }
 
-
                     // make sure we're not connected
                     Assert.IsFalse(client.IsConnected);
                 }
@@ -76,7 +75,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     await clientB.Connect();
 
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
-
                         string messageBody = null;
 
                         clientB.RequestReceived += (sender, args) => {
@@ -120,12 +118,10 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     clientA.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
 
-
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 
                     using (var eveUpdateReceived = new AutoResetEvent(false)) {
-
                         UserSubscription update = null;
 
                         var updateCount = 0;
@@ -198,7 +194,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     clientB.InitializeSubscriptionModule();
 
                     using (var eveUpdateReceived = new AutoResetEvent(false)) {
-
                         UserUpdatedEventArgs updatedUserArgs = null;
 
                         clientA.Subscription().UserUpdated += (sender, args) => {
@@ -246,7 +241,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
             }
         }
 
-
         [TestCase]
         public async Task SendMessageToOfflineUser_ThrowsException() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7906);
@@ -287,7 +281,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     await clientB.Connect();
 
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
-
                         string messageBody = null;
 
                         clientB.RequestReceived += (sender, args) => {
@@ -307,7 +300,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         if (!eveMessageReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientB never got their message :(");
 
-
                         try {
                             var result = await sendTask;
                         } catch (ErrorResponseException ex) {
@@ -322,12 +314,12 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         }
     }
 
-    public class TestConnectionProvider : IConnectionProvider
+    public class TestConnectionProvider : IConnectionProvider, IDisposable
     {
         public const string OnlineStatus = nameof(OnlineStatus);
         public const string OfflineStatus = nameof(OfflineStatus);
 
-        private UserConnectionMap OnlineUsers { get; set; }
+        private UserConnectionMap OnlineUsers { get; }
 
         private Server _server;
 
@@ -339,7 +331,9 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
             try {
                 await _server.UpdateUserStatus(e.UserId, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
+#pragma warning disable CS0168 // Variable is declared but never used
             } catch (ObjectDisposedException ex) {
+#pragma warning restore CS0168 // Variable is declared but never used
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
@@ -368,6 +362,37 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public IEnumerable<IConnection> GetConnections() {
             return OnlineUsers.GetConnections();
         }
+
+        #region IDisposable Support
+        private bool _disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing) {
+            if (!_disposedValue) {
+                if (disposing) {
+                    OnlineUsers.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                _disposedValue = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~TestConnectionProvider() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose() {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 
     public class TestChatDataProvider : IDataProvider
@@ -399,13 +424,13 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
             UserSubscriptionUpdated?.Invoke(this, args);
         }
 
-        public virtual IEnumerable<string> GetUserSubscribers(string user) {
-            return Subscriptions.Where(usub => usub.Value.Any(sub => sub.UserId == user)).Select(usub => usub.Key);
+        public virtual IEnumerable<string> GetUserSubscribers(string userId) {
+            return Subscriptions.Where(usub => usub.Value.Any(sub => sub.UserId == userId)).Select(usub => usub.Key);
         }
 
-        public virtual IEnumerable<UserSubscription> GetUserSubscriptions(string user) {
-            if(!Subscriptions.TryGetValue(user, out IList<UserSubscription> subscriptions)) {
-                Subscriptions.Add(user, subscriptions = new List<UserSubscription>());
+        public virtual IEnumerable<UserSubscription> GetUserSubscriptions(string userId) {
+            if(!Subscriptions.TryGetValue(userId, out IList<UserSubscription> subscriptions)) {
+                Subscriptions.Add(userId, subscriptions = new List<UserSubscription>());
             }
             return subscriptions;
         }

@@ -2,6 +2,7 @@
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System.IO;
+using System.Text;
 
 namespace Octgn.Communication.Test.Packets
 {
@@ -40,9 +41,8 @@ namespace Octgn.Communication.Test.Packets
                 : new ResponsePacket(reqPacket, obj);
 
             using (var ms = new MemoryStream())
-            using (var writer = new BinaryWriter(ms))
-            using (var reader = new BinaryReader(ms)) {
-
+            using (var writer = new BinaryWriter(ms, Encoding.Default, true))
+            using (var reader = new BinaryReader(ms, Encoding.Default, true)) {
                 resp.Serialize(writer, serializer);
 
                 ms.Position = 0;

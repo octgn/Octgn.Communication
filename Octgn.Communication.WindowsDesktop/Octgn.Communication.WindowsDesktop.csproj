@@ -33,6 +33,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="GlobalSuppressions.cs" />
     <Compile Include="TcpConnection.cs" />
     <Compile Include="TcpListener.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

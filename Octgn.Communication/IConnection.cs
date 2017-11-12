@@ -6,8 +6,10 @@ namespace Octgn.Communication
 {
     public interface IConnection : IEquatable<IConnection>
     {
-        event ConnectionClosed ConnectionClosed;
+        event EventHandler<ConnectionClosedEventArgs> ConnectionClosed;
+#pragma warning disable RCS1159 // Use EventHandler<T>.
         event RequestPacketReceived RequestReceived;
+#pragma warning restore RCS1159 // Use EventHandler<T>.
         string ConnectionId { get; }
         bool IsClosed { get; set; }
         ISerializer Serializer { get; set; }
@@ -16,7 +18,6 @@ namespace Octgn.Communication
         IConnection Clone();
     }
 
-    public delegate void ConnectionClosed(object sender, ConnectionClosedEventArgs args);
     public class ConnectionClosedEventArgs : EventArgs
     {
         public IConnection Connection { get; set; }

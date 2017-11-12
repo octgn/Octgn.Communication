@@ -8,6 +8,10 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 {
     public class ServerSubscriptionModule : IServerModule
     {
+#pragma warning disable IDE1006 // Naming Styles
+        private static readonly ILogger Log = LoggerFactory.Create(nameof(ServerSubscriptionModule));
+#pragma warning restore IDE1006 // Naming Styles
+
         private readonly IDataProvider _dataProvider;
 
         public ServerSubscriptionModule(Server server, IDataProvider dataProvider) {
@@ -126,7 +130,9 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                     try {
                         await connection.Request(packet);
                     } catch (NotConnectedException ex) {
+                        Log.Warn(ex);
                     } catch (DisconnectedException ex) {
+                        Log.Warn(ex);
                     }
                 }
             }

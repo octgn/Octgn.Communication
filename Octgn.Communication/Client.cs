@@ -7,15 +7,16 @@ namespace Octgn.Communication
 {
     public class Client : IDisposable
     {
-        private static ILogger Log = LoggerFactory.Create(typeof(Client));
+#pragma warning disable IDE1006 // Naming Styles
+        private static readonly ILogger Log = LoggerFactory.Create(typeof(Client));
+#pragma warning restore IDE1006 // Naming Styles
 
         public string UserId { get; set; }
         public IConnection Connection { get; private set; }
-        private readonly object L_CONNECTION = new object();
 
         public bool IsConnected { get; private set; }
 
-        public event Connected Connected;
+        public event EventHandler<ConnectedEventArgs> Connected;
         protected void FireConnectedEvent()
         {
             try {
@@ -24,7 +25,8 @@ namespace Octgn.Communication
                 Signal.Exception(ex, nameof(FireConnectedEvent));
             }
         }
-        public event Disconnected Disconnected;
+
+        public event EventHandler<DisconnectedEventArgs> Disconnected;
         protected void FireDisconnectedEvent()
         {
             try {
@@ -81,7 +83,7 @@ namespace Octgn.Communication
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             try
             {
-                args.Connection.ConnectionClosed -= Connection_ConnectionClosed;
+                args.Connection.ConnectionClosed += Connection_ConnectionClosed;
                 Log.Warn("{this}: Disconnected", args.Exception);
                 IsConnected = false;
                 FireDisconnectedEvent();
@@ -104,7 +106,7 @@ namespace Octgn.Communication
 
         private async Task ReconnectAsync() {
             var currentTry = 0;
-            var maxRetryCount = ReconnectRetryCount;
+            const int maxRetryCount = ReconnectRetryCount;
             try {
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
@@ -172,9 +174,15 @@ namespace Octgn.Communication
             return Connection.Request(request);
         }
 
+#pragma warning disable RCS1159 // Use EventHandler<T>.
         public event RequestPacketReceived RequestReceived;
+#pragma warning restore RCS1159 // Use EventHandler<T>.
 
         private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args) {
+            if (sender == null) {
+                throw new ArgumentNullException(nameof(sender));
+            }
+
             try {
                 args.Client = this;
 
@@ -197,14 +205,10 @@ namespace Octgn.Communication
         }
     }
 
-    public delegate void Connected(object sender, ConnectedEventArgs args);
-
     public class ConnectedEventArgs : EventArgs
     {
         public Client Client { get; set; }
     }
-
-    public delegate void Disconnected(object sender, DisconnectedEventArgs args);
 
     public class DisconnectedEventArgs : EventArgs
     {

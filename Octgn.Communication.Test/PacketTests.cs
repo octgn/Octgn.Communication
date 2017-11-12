@@ -16,10 +16,10 @@ namespace Octgn.Communication.Test
         public void JSON_Serialization() => Serialization(new JsonSerializer());
 
         private void Serialization(ISerializer serializer) {
-
-            string test = "test";
-            var original = new RequestPacket(test);
-            original.Id = 1;
+            const string test = "test";
+            var original = new RequestPacket(test) {
+                Id = 1
+            };
 
             var bytes = Packet.Serialize(original, serializer);
 
@@ -56,8 +56,9 @@ namespace Octgn.Communication.Test
         public void JSON_Packet_ThrowsException_IfPacketIsntRegistered() => Packet_ThrowsException_IfPacketIsntRegistered(new JsonSerializer());
 
         private void Packet_ThrowsException_IfPacketIsntRegistered(ISerializer serializer) {
-            var packet = new UnregisteredPacket();
-            packet.Id = 1;
+            var packet = new UnregisteredPacket {
+                Id = 1
+            };
 
             try {
                 Packet.Serialize(packet, serializer);
@@ -81,7 +82,7 @@ namespace Octgn.Communication.Test
 
         public class UnregisteredPacket : Packet
         {
-            public override bool RequiresAck => throw new NotImplementedException();
+            public override bool RequiresAck => true;
 
             protected override string PacketStringData => "TEST-UNREG";
 

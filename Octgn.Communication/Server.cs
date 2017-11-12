@@ -9,7 +9,9 @@ namespace Octgn.Communication
 {
     public class Server : IDisposable
     {
-        private static ILogger Log = LoggerFactory.Create(nameof(Server));
+#pragma warning disable IDE1006 // Naming Styles
+        private static readonly ILogger Log = LoggerFactory.Create(nameof(Server));
+#pragma warning restore IDE1006 // Naming Styles
 
         public bool IsEnabled {
             get => _isEnabled = Listener?.IsEnabled ?? false;
@@ -28,6 +30,7 @@ namespace Octgn.Communication
                     list.IsEnabled = value;
             }
         }
+
         private bool _isEnabled;
 
         public ConcurrentConnectionCollection Connections { get; } = new ConcurrentConnectionCollection();
@@ -162,6 +165,10 @@ namespace Octgn.Communication
 
         private async Task Connection_RequestReceived(object sender, RequestPacketReceivedEventArgs args)
         {
+            if (sender == null) {
+                throw new ArgumentNullException(nameof(sender));
+            }
+
             Log.Info($"Handling {args.Request}");
             try {
                 if (args.Request.Name == nameof(AuthenticationRequestPacket)) {

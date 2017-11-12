@@ -8,10 +8,12 @@ namespace Octgn.Communication
 {
     public class ConcurrentConnectionCollection : IConnection
     {
+#pragma warning disable RCS1079 // Throwing of new NotImplementedException.
         public ISerializer Serializer {
             get => throw new NotImplementedException();
             set => throw new NotImplementedException();
         }
+#pragma warning restore RCS1079 // Throwing of new NotImplementedException.
 
         public ConcurrentConnectionCollection() {
             _collection = new HashSet<IConnection>();
@@ -62,7 +64,7 @@ namespace Octgn.Communication
             }
         }
 
-        public event ConnectionClosed ConnectionClosed;
+        public event EventHandler<ConnectionClosedEventArgs> ConnectionClosed;
         private void Item_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             lock (_collection) {
                 args.Connection.ConnectionClosed -= Item_ConnectionClosed;
@@ -92,6 +94,7 @@ namespace Octgn.Communication
         }
 
         #region Not Implemented By Design
+#pragma warning disable RCS1079 // Throwing of new NotImplementedException.
 
         string IConnection.ConnectionId => throw new NotImplementedException("By Design");
 
@@ -107,6 +110,7 @@ namespace Octgn.Communication
             throw new NotImplementedException("By Design");
         }
 
+#pragma warning restore RCS1079 // Throwing of new NotImplementedException.
         #endregion Not Implemented By Design
     }
 }

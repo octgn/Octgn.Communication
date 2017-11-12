@@ -17,10 +17,11 @@ namespace Octgn.Communication.Test
 
         private readonly IConnection _connection;
 
-        public event ConnectionClosed ConnectionClosed {
+        public event EventHandler<ConnectionClosedEventArgs> ConnectionClosed {
             add => _connection.ConnectionClosed += value;
             remove => _connection.ConnectionClosed -= value;
         }
+
         public event RequestPacketReceived RequestReceived {
             add => _connection.RequestReceived += value;
             remove => _connection.RequestReceived -= value;
@@ -50,8 +51,8 @@ namespace Octgn.Communication.Test
         public bool Equals(IConnection other)
         {
             if (other == null) return false;
-            if (!(other is SlowConnection)) return false;
-            return (other as SlowConnection)._connection.Equals(_connection);
+            if (!(other is SlowConnection slowConnection)) return false;
+            return slowConnection._connection.Equals(_connection);
         }
     }
 }

@@ -10,8 +10,6 @@ namespace Octgn.Communication.Test
     [TestFixture]
     public class Implementation : TestBase
     {
-        private const int MaxTimeout = 10000;
-
         [TestCase]
         public async Task TcpLayerOperates() {
             var endpoint = GetEndpoint();
@@ -42,15 +40,13 @@ namespace Octgn.Communication.Test
                     var originalConnection = client.Connection;
 
                     using (var eveClientConnected = new AutoResetEvent(false)) {
-                        client.Connected += (a, b) => {
-                            eveClientConnected.Set();
-                        };
+                        client.Connected += (a, b) => eveClientConnected.Set();
 
                         // Force close connection on the server, causing the client to try can call back
                         // When it calls back, the server should auto pick it back up. This should be smooth as butter.
                         server.Connections.IsClosed = true; // closes all the connections
 
-                        bool pingSucceeded = false;
+                        var pingSucceeded = false;
 
                         try {
                             await client.Connection.Ping();
@@ -116,7 +112,6 @@ namespace Octgn.Communication.Test
             var endpoint = GetEndpoint();
 
             using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-
                 // Don't attach the ping module, that way the server won't know how to handle the ping request.
                 //server.Attach(new PingModule());
 
