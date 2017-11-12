@@ -3,9 +3,10 @@ using System.IO;
 
 namespace Octgn.Communication.Packets
 {
-    public sealed class Ack : Packet
+    public sealed class Ack : Packet, IAck
     {
-        internal override byte PacketTypeId => 255;
+        public override byte PacketTypeId => 255;
+        public override bool RequiresAck => false;
 
         public ulong PacketId { get; set; }
         public DateTimeOffset PacketReceived { get; set; }
@@ -17,6 +18,12 @@ namespace Octgn.Communication.Packets
         public Ack(Packet packet)
         {
             PacketId = packet?.Id ?? throw new ArgumentException("packet or packet.Id can't be null", nameof(packet));
+            PacketReceived = DateTimeOffset.Now;
+        }
+
+        public Ack(ulong packetId) {
+
+            PacketId = packetId;
             PacketReceived = DateTimeOffset.Now;
         }
 

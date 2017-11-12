@@ -42,5 +42,13 @@ namespace Octgn.Communication
         public static Task<ResponsePacket> SendMessage(this Client client, string toUserId, string message) {
             return client.Request(new Message(toUserId, message));
         }
+
+        public static Task SignalOnException(this Task task) {
+            return task.ContinueWith(t => {
+                if (t.Exception != null) {
+                    Signal.Exception(t.Exception);
+                }
+            });
+        }
     }
 }

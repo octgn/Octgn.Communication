@@ -1,15 +1,18 @@
 ﻿using System;
 using NUnit.Framework;
 using System.Net;
+using System.Diagnostics;
 
 namespace Octgn.Communication.Test
 {
     [Parallelizable(ParallelScope.None)]
     public abstract class TestBase
     {
+        public static int MaxTimeout => Debugger.IsAttached ? (int)TimeSpan.FromMinutes(30).TotalMilliseconds : (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
+
         [SetUp]
         public void Setup() {
-            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(10);
+            ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
             LoggerFactory.DefaultMethod = (c) => new InMemoryLogger(c);
 
             while (InMemoryLogger.LogMessages.Count > 0) {
@@ -21,6 +24,8 @@ namespace Octgn.Communication.Test
         public void TearDown() {
             GC.Collect();
             GC.WaitForPendingFinalizers();
+
+            var exceptionCount = Signal.Exceptions.Count;
 
             Console.WriteLine("===== EXCEPTIONS ======");
             while(Signal.Exceptions.Count > 0) {
@@ -34,7 +39,8 @@ namespace Octgn.Communication.Test
                     Console.WriteLine(result.ToString());
                 }
             }
-            Assert.Zero(Signal.Exceptions.Count, "Unhandled exceptions found in Signal");
+
+            Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
         }
 
         public IPEndPoint GetEndpoint() {

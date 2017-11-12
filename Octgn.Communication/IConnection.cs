@@ -13,7 +13,6 @@ namespace Octgn.Communication
         ISerializer Serializer { get; set; }
         Task Connect();
         Task<ResponsePacket> Request(RequestPacket packet);
-        Task Response(ResponsePacket packet);
         IConnection Clone();
     }
 

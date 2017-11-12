@@ -7,7 +7,8 @@ namespace Octgn.Communication
 {
     public abstract class Packet
     {
-        internal abstract byte PacketTypeId { get; }
+        public abstract byte PacketTypeId { get; }
+        public abstract bool RequiresAck { get; }
 
         public ulong? Id { get; internal set; }
         public DateTimeOffset Sent { get; set; }

@@ -123,7 +123,10 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                         ["userStatus"] = e.Status
                     };
 
-                    await connection.Request(packet);
+                    try {
+                        await connection.Request(packet);
+                    } catch (DisconnectedException ex) {
+                    }
                 }
             }
         }

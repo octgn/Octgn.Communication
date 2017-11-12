@@ -46,7 +46,7 @@ namespace Octgn.Communication
 
         private bool _connected;
         public Task Connect() {
-            if (_connected) throw new InvalidOperationException("Cannot call Connect more than once.");
+            if (_connected) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
 
             return ConnectInternal();
         }
@@ -82,12 +82,12 @@ namespace Octgn.Communication
             try
             {
                 args.Connection.ConnectionClosed -= Connection_ConnectionClosed;
-                Log.Warn("Disconnected", args.Exception);
+                Log.Warn("{this}: Disconnected", args.Exception);
                 IsConnected = false;
                 FireDisconnectedEvent();
                 if (_disposed)
                 {
-                    Log.Info($"Client: {args.Connection}: {UserId}: Disposed, not going to try and reconnect");
+                    Log.Info($"{this}: {args.Connection}: {UserId}: Disposed, not going to try and reconnect");
                     return;
                 }
 
@@ -108,36 +108,37 @@ namespace Octgn.Communication
             try {
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
-                    if (_disposed) {
-                        throw new ObjectDisposedException(nameof(Client));
-                    }
+                    if (_disposed) break;
 
                     if (!Connection.IsClosed)
-                        throw new InvalidOperationException($"{nameof(ReconnectAsync)}: Can't reconnect if the {nameof(Connection)} is not closed.");
+                        throw new InvalidOperationException($"{this}: {nameof(ReconnectAsync)}: Can't reconnect if the {nameof(Connection)} is not closed.");
+
+                    Connection.ConnectionClosed -= Connection_ConnectionClosed;
+                    Connection.RequestReceived -= Connection_RequestReceived;
 
                     Connection = Connection.Clone();
 
                     if (Connection.IsClosed)
-                        throw new InvalidOperationException($"{nameof(ReconnectAsync)}: Can't reconnect if the cloned {nameof(Connection)} is already closed.");
+                        throw new InvalidOperationException($"{this}: {nameof(ReconnectAsync)}: Can't reconnect if the cloned {nameof(Connection)} is already closed.");
 
                     Connection.Serializer = this.Serializer;
 
-                    Log.Info($"{nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
+                    Log.Info($"{this}: {nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
 
                     try {
                         await Task.Delay(ReconnectRetryDelay);
                         await ConnectInternal();
                     } catch (Exception ex) {
-                        Log.Warn($"{nameof(ReconnectAsync)}: Error When Reconnecting...Going to try again...", ex);
+                        Log.Warn($"{this}: {nameof(ReconnectAsync)}: Error When Reconnecting...Going to try again...", ex);
                         continue;
                     }
 
-                    Log.Info($"{nameof(ReconnectAsync)}: Reconnected after {currentTry} out of {maxRetryCount} tries");
+                    Log.Info($"{this}: {nameof(ReconnectAsync)}: Reconnected after {currentTry} out of {maxRetryCount} tries");
                     return;
                 }
             } finally {
                 if(!IsConnected)
-                    Log.Warn($"{nameof(ReconnectAsync)}: Failed to reconnect after {currentTry} out of {maxRetryCount} tries");
+                    Log.Warn($"{this}: {nameof(ReconnectAsync)}: Failed to reconnect after {currentTry} out of {maxRetryCount} tries");
             }
         }
 
@@ -153,7 +154,7 @@ namespace Octgn.Communication
         private bool _disposed;
         public void Dispose() {
             _disposed = true;
-            Log.Info($"Client: {Connection}: {UserId}: Disposed");
+            Log.Info($"{this}: Disposed");
             foreach(var moduleKVP in _clientModules) {
                 var module = moduleKVP.Value;
 
@@ -167,7 +168,7 @@ namespace Octgn.Communication
         }
 
         public Task<ResponsePacket> Request(RequestPacket request) {
-            if (!IsConnected && !_authenticating) throw new NotConnectedException($"Could not send the request {request}, the client is not connected.");
+            if (!IsConnected && !_authenticating) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
             return Connection.Request(request);
         }
 
@@ -189,6 +190,10 @@ namespace Octgn.Communication
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
+        }
+
+        public override string ToString() {
+            return $"{nameof(Client)} {this.UserId}: {Connection}";
         }
     }
 

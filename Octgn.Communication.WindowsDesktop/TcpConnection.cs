@@ -111,63 +111,47 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly ManualResetEventSlim E_READINGCOMPLETE = new ManualResetEventSlim(true);
+        protected override async Task ReadPacketsAsync() {
+            Log.Info(this.ToString() + ": " + nameof(ReadPacketsAsync));
 
-        private bool _calledReadPackets;
-        private readonly object L_CALLEDREADPACKETS = new object();
-        protected override async Task ReadPacketsAsync()
-        {
-            try {
-                Log.Info(this.ToString() + ": " + nameof(ReadPacketsAsync));
-                // NO REENTRY. These connections are single shot.
-                lock (L_CALLEDREADPACKETS) {
-                    if (_calledReadPackets) throw new InvalidOperationException($"{this}: Already called {nameof(ReadPacketsAsync)}");
-                    _calledReadPackets = true;
-                    E_READINGCOMPLETE.Reset();
+            var client = _client;
+            var buffer = new byte[256];
+            while (_isConnected) {
+                var count = 0;
+                try {
+                    var stream = client?.GetStream();
+                    if (stream == null) return;
+
+                    count = await stream.ReadAsync(buffer, 0, 256);
+                } catch (IOException ex) {
+                    throw new DisconnectedException(this.ToString(), ex);
+                } catch (ObjectDisposedException) {
+                    throw new DisconnectedException(this.ToString());
                 }
-                var client = _client;
-                var buffer = new byte[256];
-                while (!base.IsClosed) {
-                    var count = 0;
-                    try {
-                        var stream = client?.GetStream();
-                        if (stream == null) return;
 
-                        count = await stream.ReadAsync(buffer, 0, 256)
-                            .ConfigureAwait(false);
-                    } catch (IOException ex) {
-                        throw new DisconnectedException(this.ToString(), ex);
-                    } catch (ObjectDisposedException) {
-                        throw new DisconnectedException(this.ToString());
-                    }
+                if (count == 0) return;
 
-                    if (count == 0) return;
-
-                    foreach (var packet in _packetBuilder.AddData(Serializer, buffer, count)) {
+                foreach (var packet in _packetBuilder.AddData(Serializer, buffer, count)) {
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                        // This is OK because the Task has a catch all
-                        Task.Run(async () => {
-                            try {
-                                await FirePacketReceived(packet);
-                            } catch (Exception ex) {
-                                Log.Error($"{this} FirePacketReceived", ex);
+                    // Don't await this, it causes deadlocks.
+                    Task.Run(async () => {
+                        try {
+                            if (!_isConnected) {
+                                Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
+                                return;
                             }
-                        });
+                            await ProcessReceivedPacket(packet);
+                        } catch (Exception ex) {
+                            Signal.Exception(ex);
+                            IsClosed = true;
+                        }
+                    });
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                    }
                 }
-            } catch (DisconnectedException) {
-                Log.Info($"{this}: Disconnected");
-            } catch (Exception ex) {
-                Log.Error($"{this}", ex);
-                Signal.Exception(ex, this.ToString());
-            } finally {
-                E_READINGCOMPLETE.Set();
-                IsClosed = true;
             }
         }
 
-        protected override async Task SendPacket(Packet packet)
+        protected override async Task SendPacketImplementation(Packet packet)
         {
             try {
                 packet.Sent = DateTimeOffset.Now;
@@ -179,8 +163,7 @@ namespace Octgn.Communication
                 if (stream == null) throw new InvalidOperationException($"{this}: Can't send packet {packet.Id}, there's no open connection");
 
 
-                await stream.WriteAsync(packetData, 0, packetData.Length, _connectionCloseCancellation.Token);
-                await base.SendPacket(packet);
+                await stream.WriteAsync(packetData, 0, packetData.Length, ClosedCancellationToken);
             } catch (ObjectDisposedException) {
                 IsClosed = true;
                 throw new DisconnectedException(this.ToString());
@@ -190,21 +173,16 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly CancellationTokenSource _connectionCloseCancellation = new CancellationTokenSource();
-
         protected override void Close(ConnectionClosedEventArgs args)
         {
             Log.Info($"{this}: Close");
             if (_isConnected) {
                 _isConnected = false;
                 try {
-                    _client?.Client.Disconnect(false);
-                } catch { }
-                _connectionCloseCancellation.Cancel();
-                _client?.Close();
-                try {
-                    if (!E_READINGCOMPLETE.Wait(30000)) throw new TimeoutException($"{this}: Timed out waiting for the read loop to complete.");
-                } catch (ObjectDisposedException) { }
+                    _client?.Close();
+                } catch (Exception ex) {
+                    Log.Warn($"{this}: {nameof(Close)}", ex);
+                }
                 base.Close(args);
             }
         }
@@ -212,17 +190,5 @@ namespace Octgn.Communication
         public override IConnection Clone() => new TcpConnection(this);
 
         public override string ToString() => _toString;
-
-        public override void Dispose()
-        {
-            Log.Info($"{this}: Dispose");
-            if (!this.IsClosed) this.IsClosed = true;
-            try {
-                E_READINGCOMPLETE.Dispose();
-                _connectionCloseCancellation?.Dispose();
-            } finally {
-                base.Dispose();
-            }
-        }
     }
 }

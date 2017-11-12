@@ -99,7 +99,7 @@ namespace Octgn.Communication
         protected bool IsDisposed => _disposeCallCount > 0;
 
         private void VerifyNotDisposed() {
-            if (IsDisposed) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
+            if (IsDisposed) throw new ObjectDisposedException(nameof(Server));
         }
 
         public void Dispose()
@@ -172,9 +172,6 @@ namespace Octgn.Communication
                     args.Response = new ResponsePacket(args.Request, result);
                     args.IsHandled = true;
 
-                    if (!result.Successful)
-                        args.Connection.IsClosed = true;
-
                     return;
                 }
 
@@ -192,15 +189,11 @@ namespace Octgn.Communication
             } catch (ErrorResponseException ex) {
                 var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
                 args.Response = new ResponsePacket(args.Request, err);
-                if (ex.IsCritical)
-                    args.Connection.IsClosed = true;
             } catch (Exception ex) {
                 Signal.Exception(ex);
 
                 var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "", true);
                 args.Response = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, ex.Message, true));
-
-                args.Connection.IsClosed = true;
             }
         }
     }

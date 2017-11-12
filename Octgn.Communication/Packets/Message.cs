@@ -11,7 +11,7 @@
             set => this[nameof(Body)] = value;
         }
 
-        internal override byte PacketTypeId => 6;
+        public override byte PacketTypeId => 6;
 
         public Message() : base(nameof(Message)) {
 

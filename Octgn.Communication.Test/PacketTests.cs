@@ -81,9 +81,11 @@ namespace Octgn.Communication.Test
 
         public class UnregisteredPacket : Packet
         {
+            public override bool RequiresAck => throw new NotImplementedException();
+
             protected override string PacketStringData => "TEST-UNREG";
 
-            internal override byte PacketTypeId => 200;
+            public override byte PacketTypeId => 200;
         }
     }
 }

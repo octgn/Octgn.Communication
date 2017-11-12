@@ -25,7 +25,9 @@ namespace Octgn.Communication.Packets
             Name = name;
         }
 
-        internal override byte PacketTypeId => 3;
+        public override byte PacketTypeId => 3;
+
+        public override bool RequiresAck => true;
 
         protected override string PacketStringData => $"REQ+{Name}";
 

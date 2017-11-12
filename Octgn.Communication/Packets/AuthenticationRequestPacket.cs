@@ -9,7 +9,7 @@ namespace Octgn.Communication.Packets
             get => (string)this[nameof(AuthenticationType)];
             set => this[nameof(AuthenticationType)] = value;
         }
-        internal override byte PacketTypeId => 5;
+        public override byte PacketTypeId => 5;
 
         public AuthenticationRequestPacket() {
 

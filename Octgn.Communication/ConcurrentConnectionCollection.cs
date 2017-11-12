@@ -103,10 +103,6 @@ namespace Octgn.Communication
             throw new NotImplementedException("By Design");
         }
 
-        Task IConnection.Response(ResponsePacket packet) {
-            throw new NotImplementedException("By Design");
-        }
-
         IConnection IConnection.Clone() {
             throw new NotImplementedException("By Design");
         }

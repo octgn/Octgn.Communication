@@ -37,8 +37,7 @@ namespace Octgn.Communication
                 while (_isEnabled) {
                     TcpClient result = null;
                     try {
-                        result = await _listener.AcceptTcpClientAsync()
-                            .ConfigureAwait(false);
+                        result = await _listener.AcceptTcpClientAsync();
 
                     } catch (ObjectDisposedException) {
                         break;

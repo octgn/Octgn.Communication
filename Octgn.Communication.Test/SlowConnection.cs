@@ -42,12 +42,6 @@ namespace Octgn.Communication.Test
             return await _connection.Request(packet);
         }
 
-        public async Task Response(ResponsePacket packet)
-        {
-            await Task.Delay(2000);
-            await _connection.Response(packet);
-        }
-
         public IConnection Clone()
         {
             return new SlowConnection( _connection.Clone());

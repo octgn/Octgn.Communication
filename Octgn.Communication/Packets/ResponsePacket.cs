@@ -4,23 +4,30 @@ using System.IO;
 
 namespace Octgn.Communication.Packets
 {
-    public sealed class ResponsePacket : DataPacket {
+    public sealed class ResponsePacket : DataPacket, IAck {
 
         private static ILogger Log = LoggerFactory.Create(nameof(ResponsePacket));
 
-        public ulong InResponseTo { get; set; }
+        public ulong RequestPacketId {
+            get => PacketId;
+            set => PacketId = value;
+        }
+
+        public ulong PacketId { get; set; }
+        public DateTimeOffset PacketReceived { get; set; }
 
         public ResponsePacket() : base() { }
 
         public ResponsePacket(RequestPacket req) : base() {
-            InResponseTo = req?.Id ?? throw new ArgumentNullException(nameof(req));
+            RequestPacketId = req?.Id ?? throw new ArgumentNullException(nameof(req));
         }
 
         public ResponsePacket(RequestPacket req, object response) : base(response) {
-            InResponseTo = req?.Id ?? throw new ArgumentNullException(nameof(req));
+            RequestPacketId = req?.Id ?? throw new ArgumentNullException(nameof(req));
         }
 
-        internal override byte PacketTypeId => 4;
+        public override byte PacketTypeId => 4;
+        public override bool RequiresAck => false;
 
         protected override string PacketStringData {
             get {
@@ -28,7 +35,7 @@ namespace Octgn.Communication.Packets
                     ? "REP+UNKNOWN"
                     : $"REP+{DataType}";
 
-                var addPacketData = $"in response to #{InResponseTo.ToString()}";
+                var addPacketData = $"in response to #{RequestPacketId.ToString()}";
                 return packetIDData + " " + addPacketData;
             }
         }
@@ -36,14 +43,16 @@ namespace Octgn.Communication.Packets
         internal override void Serialize(BinaryWriter writer, ISerializer serializer)
         {
             base.Serialize(writer, serializer);
-            writer.Write(InResponseTo);
+            writer.Write(PacketId);
+            writer.Write(PacketReceived.ToString("o"));
         }
 
         internal override void Deserialize(BinaryReader reader, ISerializer serializer)
         {
             base.Deserialize(reader, serializer);
 
-            InResponseTo = reader.ReadUInt64();
+            PacketId = reader.ReadUInt64();
+            PacketReceived = DateTimeOffset.Parse(reader.ReadString());
         }
 
         [DebuggerStepThrough]

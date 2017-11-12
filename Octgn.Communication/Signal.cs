@@ -10,9 +10,12 @@ namespace Octgn.Communication
 
         public static ConcurrentQueue<ExceptionEventArgs> Exceptions { get; } = new ConcurrentQueue<ExceptionEventArgs>();
 
-        public static void Exception(Exception ex, string message = null) {
-            FireOrQueueException(ex, message);
-
+        public static void Exception(Exception exception, string message = null) {
+            if(exception is AggregateException agg) {
+                foreach(var ex in agg.InnerExceptions) {
+                    Exception(ex, message);
+                }
+            } else FireOrQueueException(exception, message);
         }
 
         private static async void FireOrQueueException(Exception ex, string message) {

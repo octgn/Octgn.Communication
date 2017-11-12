@@ -16,8 +16,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
     [Parallelizable(ParallelScope.None)]
     public class Implementation : TestBase
     {
-        private const int MaxTimeout = 10000;
-
         [TestCase]
         public async Task FailedAuthenticationCausesServerToDisconnectClient() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7902);
@@ -273,6 +271,8 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public async Task SendMessage_Fails_IfNoResponseNotHandledByReceiver() {
             var endpoint = new IPEndPoint(IPAddress.Loopback, 7910);
 
+            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(60);
+
             using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
@@ -320,53 +320,6 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                 }
             }
         }
-
-        [TestCase]
-        public async Task SendMessage_TimesOut_IfUserNeverReplies() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7910);
-
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
-
-                server.IsEnabled = true;
-
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
-                    clientA.InitializeSubscriptionModule();
-                    clientB.InitializeSubscriptionModule();
-
-                    await clientA.Connect();
-                    await clientB.Connect();
-
-                    using (var eveMessageReceived = new AutoResetEvent(false)) {
-
-                        clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return Task.CompletedTask;
-
-                            eveMessageReceived.Set();
-
-                            eveMessageReceived.WaitOne();
-
-                            return Task.CompletedTask;
-                        };
-
-                        var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
-
-                        if (!eveMessageReceived.WaitOne(MaxTimeout))
-                            Assert.Fail("clientB never got their message :(");
-
-                        try {
-                            var result = await sendTask;
-                        } catch (ErrorResponseException ex) {
-                            Assert.AreEqual(ErrorResponseCodes.UserOffline, ex.Code);
-                            return;
-                        }
-
-                        Assert.Fail("SendMessage should have failed due to receiver being locked up.");
-                    }
-                }
-            }
-        }
     }
 
     public class TestConnectionProvider : IConnectionProvider
@@ -386,6 +339,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
             try {
                 await _server.UpdateUserStatus(e.UserId, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
+            } catch (ObjectDisposedException ex) {
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
