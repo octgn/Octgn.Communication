@@ -194,7 +194,7 @@ namespace Octgn.Communication
                 }
 
                 if(!args.IsHandled) {
-                    RequestReceived?.Invoke(this, args);
+                    await RequestReceived?.Invoke(this, args);
                 }
             } catch (Exception ex) {
                 Signal.Exception(ex);
