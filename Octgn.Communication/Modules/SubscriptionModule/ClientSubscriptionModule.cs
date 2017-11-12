@@ -32,7 +32,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         }
 
         public event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
-        private async Task OnUserSubscriptionUpdated(object sender, RequestReceivedEventArgs args) {
+        private async Task<ResponsePacket> OnUserSubscriptionUpdated(object sender, RequestReceivedEventArgs args) {
             var subscription = UserSubscription.GetFromPacket(args.Request);
 
             var usubArgs = new UserSubscriptionUpdatedEventArgs {
