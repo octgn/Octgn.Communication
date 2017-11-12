@@ -169,7 +169,7 @@ namespace Octgn.Communication
                 throw new ArgumentNullException(nameof(sender));
             }
 
-            Log.Info($"Handling {args.Request}");
+            Log.Info($"{args.Connection}: Handling {args.Request}");
             try {
                 if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
                     var result = await _authenticationHandler.Authenticate(this, args.Connection, (AuthenticationRequestPacket)args.Request);
