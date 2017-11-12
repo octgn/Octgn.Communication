@@ -47,7 +47,7 @@ namespace Octgn.Communication
             });
         }
 
-        event RequestReceived IConnection.RequestReceived {
+        public event RequestReceived RequestReceived {
             add {
                 _requestReceived += value;
                 lock (_startedReadingPacketsLock) {
@@ -123,7 +123,12 @@ namespace Octgn.Communication
                         }
                     };
 
-                    await _requestReceived?.Invoke(this, args);
+                    var eventTask = _requestReceived?.Invoke(this, args);
+                    await eventTask;
+                    if(eventTask is Task<ResponsePacket> responseTask) {
+                        args.Response = responseTask.Result;
+                        args.IsHandled = args.Response != null;
+                    }
 
                     var unhandledRequestResponse = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Request} not expected.", false));
 
@@ -175,16 +180,24 @@ namespace Octgn.Communication
         protected async Task<Packet> SendPacket(Packet packet) {
             if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
 
-            Log.TracePacketSent(this, packet);
+            if (!packet.RequiresAck) {
 
-            await SendPacketImplementation(packet);
+                Log.TracePacketSent(this, packet);
 
-            if (!packet.RequiresAck) return null;
+                await SendPacketImplementation(packet);
+
+                return null;
+            }
 
             // Wait for the ack
             var tcs = new TaskCompletionSource<Packet>();
             try {
                 _awaitingAck.AddOrUpdate(packet.Id.Value, tcs, (a, b) => tcs);
+
+                Log.TracePacketSent(this, packet);
+
+                await SendPacketImplementation(packet);
+
 #if(DEBUG)
                 Log.Info($"{this}: Waiting for ack for #{packet.Id}");
 #endif
@@ -237,6 +250,7 @@ namespace Octgn.Communication
         private readonly Task _closedCancellationTask;
 
         protected CancellationToken ClosedCancellationToken =>  _closedCancellation.Token;
+        protected Task ClosedCancellationTask => _closedCancellationTask;
 
         public ISerializer Serializer { get; set; }
 
