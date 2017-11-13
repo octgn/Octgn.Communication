@@ -21,7 +21,7 @@ namespace Octgn.Communication
             var packet = args.Request;
 
             if(args.Context.Server != null) {
-                args.Context.UserId = args.Context.Server.ConnectionProvider.GetUserId(args.Context.Connection);
+                args.Context.User = args.Context.Server.ConnectionProvider.GetUser(args.Context.Connection);
             }
 
             if (args.Context.Server == null && args.Context.Client == null)

@@ -13,7 +13,7 @@ namespace Octgn.Communication
         public ulong? Id { get; internal set; }
         public DateTimeOffset Sent { get; set; }
         public string Destination { get; set; }
-        public string Origin { get; internal set; }
+        public User Origin { get; internal set; }
 
         protected Packet()
         {
@@ -63,7 +63,7 @@ namespace Octgn.Communication
                 writer.Write(packet.PacketTypeId);
                 writer.Write(packet.Id.Value);
                 writer.Write(packet.Destination ?? string.Empty);
-                writer.Write(packet.Origin ?? string.Empty);
+                writer.Write(packet.Origin?.ToString() ?? string.Empty);
                 writer.Write(packet.Sent.ToString("o"));
 
                 // Write the packet data
@@ -114,7 +114,7 @@ namespace Octgn.Communication
                 var packetTypeId = reader.ReadByte();
                 var packetId = reader.ReadUInt64();
                 var packetDestination = reader.ReadString();
-                var packetOrigin = reader.ReadString();
+                User.TryParse(reader.ReadString(), out User packetOrigin);
                 string tstr = null;
                 var packetSent = DateTimeOffset.Parse(tstr = reader.ReadString());
 

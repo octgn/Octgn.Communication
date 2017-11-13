@@ -73,11 +73,11 @@ namespace Octgn.Communication
             }
         }
 
-        public async Task UpdateUserStatus(string userId, string status) {
+        public async Task UpdateUserStatus(User user, string status) {
             VerifyNotDisposed();
 
             var handlerArgs = new UserStatusChangedEventArgs() {
-                UserId = userId,
+                User = user,
                 Status = status
             };
             IServerModule[] serverModules = null;
@@ -176,7 +176,7 @@ namespace Octgn.Communication
                 if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
                     var result = await _authenticationHandler.Authenticate(this, args.Context.Connection, (AuthenticationRequestPacket)args.Request);
 
-                    await ConnectionProvider.AddConnection(args.Context.Connection, result.UserId);
+                    await ConnectionProvider.AddConnection(args.Context.Connection, result.User);
 
                     args.Response = new ResponsePacket(args.Request, result);
                     args.IsHandled = true;
@@ -184,7 +184,7 @@ namespace Octgn.Communication
                     return;
                 }
 
-                args.Context.UserId = args.Request.Origin = ConnectionProvider.GetUserId(args.Context.Connection);
+                args.Context.User = args.Request.Origin = ConnectionProvider.GetUser(args.Context.Connection);
 
                 if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
                     args.Response = await Request(args.Request, args.Request.Destination);

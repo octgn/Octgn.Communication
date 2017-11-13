@@ -11,11 +11,11 @@ namespace Octgn.Communication
         private static ILogger Log = LoggerFactory.Create(nameof(UserConnectionMap));
 
         public event EventHandler<UserConnectionChangedEventArgs> UserConnectionChanged;
-        protected async Task FireUserConnectionChanged(string userId, bool isConnected) {
+        protected async Task FireUserConnectionChanged(User user, bool isConnected) {
             var eve = UserConnectionChanged;
             if (eve != null) {
                 var args = new UserConnectionChangedEventArgs {
-                    UserId = userId,
+                    User = user,
                     IsConnected = isConnected
                 };
 
@@ -25,16 +25,16 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly ConcurrentDictionary<IConnection, string> _connectionToUsers = new ConcurrentDictionary<IConnection, string>();
+        private readonly ConcurrentDictionary<IConnection, User> _connectionToUsers = new ConcurrentDictionary<IConnection, User>();
 
-        public async Task AddConnection(IConnection connection, string userId) {
-            if(!_connectionToUsers.TryAdd(connection, userId))
-               throw new InvalidOperationException($"{userId} already mapped to {connection}");
+        public async Task AddConnection(IConnection connection, User user) {
+            if(!_connectionToUsers.TryAdd(connection, user))
+               throw new InvalidOperationException($"{user} already mapped to {connection}");
 
             connection.ConnectionClosed += UserConnection_ConnectionClosed;
-            Log.Info($"Mapped {userId} to {connection}");
+            Log.Info($"Mapped {user} to {connection}");
 
-            await FireUserConnectionChanged(userId, true);
+            await FireUserConnectionChanged(user, true);
         }
 
         private async void UserConnection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
@@ -44,14 +44,14 @@ namespace Octgn.Communication
 
                 connection.ConnectionClosed -= UserConnection_ConnectionClosed;
 
-                if(!_connectionToUsers.TryRemove(connection,out string userId))
+                if(!_connectionToUsers.TryRemove(connection,out User user))
                     throw new InvalidOperationException($"No mapping found for {connection}");
 
-                Log.Info($"Removed mapping from {userId} to {connection}");
+                Log.Info($"Removed mapping from {user} to {connection}");
 
-                if (!_connectionToUsers.Any(x => x.Value.Equals(userId))) {
+                if (!_connectionToUsers.Any(x => x.Value.Equals(user))) {
                     // No connections left for the user, so they disconnected
-                    await FireUserConnectionChanged(userId, false);
+                    await FireUserConnectionChanged(user, false);
                 }
 
             } catch (Exception ex) {
@@ -60,23 +60,23 @@ namespace Octgn.Communication
             }
         }
 
-        public string GetUserId(IConnection connection) {
-            _connectionToUsers.TryGetValue(connection, out string ret);
-            return ret;
+        public User GetUser(IConnection connection) {
+            _connectionToUsers.TryGetValue(connection, out User user);
+            return user;
         }
 
         public IEnumerable<IConnection> GetConnections() {
             return _connectionToUsers.Select(x => x.Key).ToArray();
         }
 
-        public IEnumerable<IConnection> GetConnections(string username) {
+        public IEnumerable<IConnection> GetConnections(string userId) {
             return _connectionToUsers
-                .Where(x => username.Equals(x.Value, StringComparison.OrdinalIgnoreCase))
+                .Where(x => userId.Equals(x.Value.Id, StringComparison.OrdinalIgnoreCase))
                 .Select(x => x.Key)
                 .ToArray();
         }
 
-        public IEnumerable<string> GetOnlineUsers() {
+        public IEnumerable<User> GetOnlineUsers() {
             return _connectionToUsers
                 .Select(x => x.Value)
                 .ToArray();

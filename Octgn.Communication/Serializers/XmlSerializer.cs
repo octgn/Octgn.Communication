@@ -7,10 +7,14 @@ namespace Octgn.Communication.Serializers
 {
     public class XmlSerializer : ISerializer
     {
-        public XmlSerializer() { }
+        public XmlSerializer() {
+            IncludedTypes = new Type[] {
+                typeof(User)
+            };
+        }
 
         public XmlSerializer(params Type[] types) {
-            IncludedTypes = types ?? new Type[0];
+            IncludedTypes = (types ?? new Type[0]).Concat(new[] { typeof(User)}).ToArray();
         }
 
         public Type[] IncludedTypes = new Type[0];

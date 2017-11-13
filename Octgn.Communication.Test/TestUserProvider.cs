@@ -15,8 +15,8 @@ namespace Octgn.Communication.Test
             return OnlineUsers.GetConnections(userId);
         }
 
-        public Task AddConnection(IConnection connection, string userId) {
-            return OnlineUsers.AddConnection(connection, userId);
+        public Task AddConnection(IConnection connection, User user) {
+            return OnlineUsers.AddConnection(connection, user);
         }
 
         private Server _server;
@@ -24,8 +24,8 @@ namespace Octgn.Communication.Test
             _server = server;
         }
 
-        public string GetUserId(IConnection connection) {
-            return OnlineUsers.GetUserId(connection);
+        public User GetUser(IConnection connection) {
+            return OnlineUsers.GetUser(connection);
         }
 
         public string GetUserStatus(string userId) {

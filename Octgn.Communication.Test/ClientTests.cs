@@ -120,7 +120,7 @@ namespace Octgn.Communication.Test
         public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet) {
             var userId = (string)packet["userid"];
 
-            return Task.FromResult(AuthenticationResult.Success(userId));
+            return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));
         }
     }
 }

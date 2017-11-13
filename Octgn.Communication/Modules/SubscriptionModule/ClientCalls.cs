@@ -23,7 +23,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         public async Task<UserSubscription> AddUserSubscription(string name, string category) {
             var subscription = new UserSubscription {
                 UserId = name,
-                SubscriberUserId = _client.UserId,
+                SubscriberUserId = _client.User.Id,
                 Category = category
             };
 

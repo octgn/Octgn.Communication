@@ -9,9 +9,9 @@ namespace Octgn.Communication
 
         IEnumerable<IConnection> GetConnections();
         IEnumerable<IConnection> GetConnections(string userId);
-        string GetUserId(IConnection connection);
+        User GetUser(IConnection connection);
         string GetUserStatus(string userId);
 
-        Task AddConnection(IConnection connection, string userId);
+        Task AddConnection(IConnection connection, User user);
     }
 }

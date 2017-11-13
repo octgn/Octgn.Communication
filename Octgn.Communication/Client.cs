@@ -11,7 +11,7 @@ namespace Octgn.Communication
         private static readonly ILogger Log = LoggerFactory.Create(typeof(Client));
 #pragma warning restore IDE1006 // Naming Styles
 
-        public string UserId { get; set; }
+        public User User { get; set; }
         public IConnection Connection { get; private set; }
 
         public bool IsConnected { get; private set; }
@@ -72,7 +72,7 @@ namespace Octgn.Communication
                 _authenticating = false;
             }
 
-            this.UserId = result.UserId;
+            this.User = result.User;
 
             _connected = true;
             IsConnected = true;
@@ -89,7 +89,7 @@ namespace Octgn.Communication
                 FireDisconnectedEvent();
                 if (_disposed)
                 {
-                    Log.Info($"{this}: {args.Connection}: {UserId}: Disposed, not going to try and reconnect");
+                    Log.Info($"{this}: {args.Connection}: {User}: Disposed, not going to try and reconnect");
                     return;
                 }
 
@@ -185,7 +185,7 @@ namespace Octgn.Communication
 
             try {
                 args.Context.Client = this;
-                args.Context.UserId = this.UserId;
+                args.Context.User = this.User;
 
                 foreach (var handler in _clientModules.Values) {
                     await handler.HandleRequest(this, args);
@@ -202,7 +202,7 @@ namespace Octgn.Communication
         }
 
         public override string ToString() {
-            return $"{nameof(Client)} {this.UserId}: {Connection}";
+            return $"{nameof(Client)} {this.User}: {Connection}";
         }
     }
 

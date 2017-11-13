@@ -2,10 +2,9 @@
 
 namespace Octgn.Communication
 {
-
     public class UserConnectionChangedEventArgs : EventArgs
     {
-        public string UserId { get; set; }
+        public User User { get; set; }
         public bool IsConnected { get; set; }
     }
 }

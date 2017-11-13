@@ -89,7 +89,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                             return Task.CompletedTask;
                         };
 
-                        var result = await clientA.SendMessage(clientB.UserId, "asdf");
+                        var result = await clientA.SendMessage(clientB.User.Id, "asdf");
 
                         Assert.IsNotNull(result);
 
@@ -212,7 +212,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                         Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
                         Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
 
                         updatedUserArgs = null;
@@ -224,7 +224,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                         Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
                         Assert.AreEqual(TestConnectionProvider.OnlineStatus, updatedUserArgs.UserStatus);
 
                         clientB.Connection.IsClosed = true;
@@ -234,7 +234,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                         Assert.NotNull(updatedUserArgs);
 
-                        Assert.AreEqual(nameof(clientB), updatedUserArgs.UserId);
+                        Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
                         Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
                     }
                 }
@@ -295,7 +295,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                             return Task.CompletedTask;
                         };
 
-                        var sendTask = clientA.SendMessage(clientB.UserId, "asdf");
+                        var sendTask = clientA.SendMessage(clientB.User.Id, "asdf");
 
                         if (!eveMessageReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientB never got their message :(");
@@ -330,7 +330,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
             try {
-                await _server.UpdateUserStatus(e.UserId, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
+                await _server.UpdateUserStatus(e.User, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
 #pragma warning disable CS0168 // Variable is declared but never used
             } catch (ObjectDisposedException ex) {
 #pragma warning restore CS0168 // Variable is declared but never used
@@ -347,12 +347,12 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
             _server = server;
         }
 
-        public string GetUserId(IConnection connection) {
-            return OnlineUsers.GetUserId(connection);
+        public User GetUser(IConnection connection) {
+            return OnlineUsers.GetUser(connection);
         }
 
-        public Task AddConnection(IConnection connection, string userId) {
-            return OnlineUsers.AddConnection(connection, userId);
+        public Task AddConnection(IConnection connection, User user) {
+            return OnlineUsers.AddConnection(connection, user);
         }
 
         public string GetUserStatus(string userId) {
@@ -492,7 +492,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet) {
             var userId = (string)packet["userid"];
 
-            return Task.FromResult(AuthenticationResult.Success(userId));
+            return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));
         }
     }
 

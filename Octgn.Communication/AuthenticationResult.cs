@@ -2,13 +2,13 @@
 {
     public class AuthenticationResult
     {
-        public string UserId { get; set; }
+        public User User { get; set; }
         public bool Successful { get; set; }
         public string ErrorCode { get; set; }
 
-        public static AuthenticationResult Success(string userId) {
+        public static AuthenticationResult Success(User user) {
             return new AuthenticationResult {
-                UserId = userId,
+                User = user,
                 Successful = true
             };
         }

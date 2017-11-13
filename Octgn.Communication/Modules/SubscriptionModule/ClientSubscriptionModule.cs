@@ -24,7 +24,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         private Task OnUserStatusUpdated(object sender, RequestReceivedEventArgs args) {
             var userUpdateArgs = new UserUpdatedEventArgs {
                 Client = args.Context.Client,
-                UserId = (string)args.Request["userId"],
+                User = (User)args.Request["user"],
                 UserStatus = (string)args.Request["userStatus"]
             };
             UserUpdated?.Invoke(this, userUpdateArgs);
@@ -56,7 +56,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
     public class UserUpdatedEventArgs : EventArgs
     {
         public Client Client { get; set; }
-        public string UserId { get; set; }
+        public User User { get; set; }
         public string UserStatus { get; set; }
     }
 }

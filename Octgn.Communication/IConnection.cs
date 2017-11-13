@@ -45,9 +45,9 @@ namespace Octgn.Communication
         /// </summary>
         public IConnection Connection { get; set; }
         /// <summary>
-        /// The user id of the user who sent the <see cref="RequestPacket"/>.
+        /// The <see cref="Communication.User"/> who sent the <see cref="RequestPacket"/>.
         /// </summary>
-        public string UserId { get; set; }
+        public User User { get; set; }
         /// <summary>
         /// The <see cref="Server"/> that received the <see cref="RequestPacket"/>.
         /// </summary>
@@ -66,7 +66,7 @@ namespace Octgn.Communication
                 soc = Client.ToString();
             } else throw new InvalidOperationException($"No server of Client");
 
-            return $"{soc}: {Connection}: {UserId}";
+            return $"{soc}: {Connection}: {User}";
         }
     }
 }

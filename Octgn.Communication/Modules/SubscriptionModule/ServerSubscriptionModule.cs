@@ -25,7 +25,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             _requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
             _requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
 
-            if(_server.Serializer is XmlSerializer xmlSerializer) {
+            if (_server.Serializer is XmlSerializer xmlSerializer) {
                 xmlSerializer.Include(typeof(UserSubscription));
             }
         }
@@ -37,24 +37,27 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                 var subscription = args.Subscription;
                 var userId = args.Subscription.UserId;
 
-                var connections = _server.ConnectionProvider.GetConnections(subscriberUsername);
+                var userConnection = _server.ConnectionProvider.GetConnections(userId).FirstOrDefault();
 
-                foreach (var connection in connections) {
-                    var subUpdatePacket = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
-                        ["userId"] = userId,
-                    };
+                User user = null;
 
-                    UserSubscription.AddToPacket(subUpdatePacket, subscription);
+                if (userConnection != null)
+                    user = _server.ConnectionProvider.GetUser(userConnection);
+                else user = new User(userId, null);
 
-                    if(subscription.UpdateType == UpdateType.Add || subscription.UpdateType == UpdateType.Update) {
-                        subUpdatePacket["userStatus"] = _server.ConnectionProvider.GetUserStatus(userId);
-                    }
 
-                    try {
-                        await connection.Request(subUpdatePacket);
-                    } catch (Exception ex) {
-                        Signal.Exception(ex);
-                    }
+                var subUpdatePacket = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
+                    ["user"] = user,
+                };
+                UserSubscription.AddToPacket(subUpdatePacket, subscription);
+                if (subscription.UpdateType == UpdateType.Add || subscription.UpdateType == UpdateType.Update) {
+                    subUpdatePacket["userStatus"] = _server.ConnectionProvider.GetUserStatus(userId);
+                }
+
+                try {
+                    await _server.Request(subUpdatePacket, subscriberUsername);
+                } catch (Exception ex) {
+                    Signal.Exception(ex);
                 }
             } catch (Exception ex) {
                 Signal.Exception(ex);
@@ -62,7 +65,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         }
 
         private Task OnGetUserSubscriptions(object sender, RequestReceivedEventArgs args) {
-            var subs = _dataProvider.GetUserSubscriptions(args.Context.UserId).ToArray();
+            var subs = _dataProvider.GetUserSubscriptions(args.Context.User.Id).ToArray();
             return Task.FromResult(new ResponsePacket(args.Request, subs));
         }
 
@@ -70,7 +73,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             var sub = UserSubscription.GetFromPacket(args.Request);
 
             // No other values are valid, and could potentially be malicious.
-            sub.SubscriberUserId = args.Context.UserId;
+            sub.SubscriberUserId = args.Context.User.Id;
 
             _dataProvider.UpdateUserSubscription(sub);
 
@@ -87,7 +90,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.SubscriberUserId != args.Context.UserId) {
+            if (sub?.SubscriberUserId != args.Context.User.Id) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
                 return Task.FromResult(new ResponsePacket(args.Request, errorData));
             }
@@ -103,7 +106,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.SubscriberUserId = args.Context.UserId;
+            sub.SubscriberUserId = args.Context.User.Id;
 
             _dataProvider.AddUserSubscription(sub);
 
@@ -117,14 +120,15 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         }
 
         public async Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
-            if (string.IsNullOrWhiteSpace(e.UserId)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.UserId));
+            if (e.User == null) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User));
+            if (string.IsNullOrWhiteSpace(e.User.Id)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User) + "." + nameof(e.User.Id));
             if (string.IsNullOrWhiteSpace(e.Status)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.Status));
-            var subscribedUsers = _dataProvider.GetUserSubscribers(e.UserId);
+            var subscribedUsers = _dataProvider.GetUserSubscribers(e.User.Id);
 
-            foreach(var user in subscribedUsers) {
-                foreach(var connection in _server.ConnectionProvider.GetConnections(user)) {
+            foreach (var user in subscribedUsers) {
+                foreach (var connection in _server.ConnectionProvider.GetConnections(user)) {
                     var packet = new RequestPacket(nameof(IServerCalls.UserStatusUpdated)) {
-                        ["userId"] = e.UserId,
+                        ["user"] = e.User,
                         ["userStatus"] = e.Status
                     };
 
