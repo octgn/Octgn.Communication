@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Octgn.Communication
 {
     [Serializable]
-    public class User
+    public class User : IEquatable<User>
     {
         public User() { }
 
@@ -54,6 +54,20 @@ namespace Octgn.Communication
                 user = null;
                 return false;
             }
+        }
+
+        public bool Equals(User other) {
+            return string.Equals(Id, other?.Id, StringComparison.InvariantCultureIgnoreCase);
+        }
+
+        public override bool Equals(object obj) {
+            if (obj == null) return false;
+            if (obj is User user) return Equals(user);
+            return false;
+        }
+
+        public override int GetHashCode() {
+            return Id.GetHashCode();
         }
     }
 }
