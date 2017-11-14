@@ -21,8 +21,11 @@ namespace Octgn.Communication.Test
 
         [SetUp]
         public void Setup() {
+            Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}");
             lock (_locker) {
+                Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}: Waiting for current task...");
                 _currentTest?.Task.Wait();
+                Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}: Current task completed.");
                 _currentTest = new TaskCompletionSource<object>();
             }
 
@@ -36,27 +39,34 @@ namespace Octgn.Communication.Test
 
         [TearDown]
         public void TearDown() {
+            Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}");
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
             var exceptionCount = Signal.Exceptions.Count;
 
-            Console.WriteLine("===== EXCEPTIONS ======");
-            while(Signal.Exceptions.Count > 0) {
-                if(Signal.Exceptions.TryDequeue(out var result)) {
-                    Console.WriteLine(result.ToString());
+            if (Signal.Exceptions.Count > 0) {
+                Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: EXCEPTIONS");
+                while (Signal.Exceptions.Count > 0) {
+                    if (Signal.Exceptions.TryDequeue(out var result)) {
+                        Console.WriteLine(result.ToString());
+                    }
                 }
             }
-            Console.WriteLine("===== LOGS ======");
-            while (InMemoryLogger.LogMessages.Count > 0) {
-                if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
-                    Console.WriteLine(result.ToString());
+            if (InMemoryLogger.LogMessages.Count > 0) {
+                Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: LOGS");
+                while (InMemoryLogger.LogMessages.Count > 0) {
+                    if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
+                        Console.WriteLine(result.ToString());
+                    }
                 }
             }
 
             Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
 
             _currentTest.SetResult(null);
+
+            Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: End of method.");
         }
 
         [OneTimeTearDown]
