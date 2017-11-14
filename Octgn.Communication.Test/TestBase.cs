@@ -21,11 +21,11 @@ namespace Octgn.Communication.Test
 
         [SetUp]
         public void Setup() {
-            Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}");
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: CONFIGURING TEST {TestContext.CurrentContext.Test.FullName}");
             lock (_locker) {
-                Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}: Waiting for current task...");
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: WAITING FOR CURRENT TEST");
                 _currentTest?.Task.Wait();
-                Console.WriteLine($"{nameof(Setup)}: {TestContext.CurrentContext.Test.FullName}: Current task completed.");
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: DONE WAITING FOR CURRENT TEST");
                 _currentTest = new TaskCompletionSource<object>();
             }
 
@@ -35,18 +35,21 @@ namespace Octgn.Communication.Test
             while (InMemoryLogger.LogMessages.Count > 0) {
                 InMemoryLogger.LogMessages.TryDequeue(out var result);
             }
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
         }
 
         [TearDown]
         public void TearDown() {
-            Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}");
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Test complete.");
             GC.Collect();
             GC.WaitForPendingFinalizers();
+
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Cleaned up GC");
 
             var exceptionCount = Signal.Exceptions.Count;
 
             if (Signal.Exceptions.Count > 0) {
-                Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: EXCEPTIONS");
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: EXCEPTIONS =============================");
                 while (Signal.Exceptions.Count > 0) {
                     if (Signal.Exceptions.TryDequeue(out var result)) {
                         Console.WriteLine(result.ToString());
@@ -54,7 +57,7 @@ namespace Octgn.Communication.Test
                 }
             }
             if (InMemoryLogger.LogMessages.Count > 0) {
-                Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: LOGS");
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: LOGS =============================");
                 while (InMemoryLogger.LogMessages.Count > 0) {
                     if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
                         Console.WriteLine(result.ToString());
@@ -64,9 +67,11 @@ namespace Octgn.Communication.Test
 
             Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
 
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Signaling test complete.");
+
             _currentTest.SetResult(null);
 
-            Console.WriteLine($"{nameof(TearDown)}: {TestContext.CurrentContext.Test.FullName}: End of method.");
+            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Very very end of test. Good bye.");
         }
 
         [OneTimeTearDown]
