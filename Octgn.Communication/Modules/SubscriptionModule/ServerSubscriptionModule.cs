@@ -45,7 +45,6 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                     user = _server.ConnectionProvider.GetUser(userConnection);
                 else user = new User(userId, null);
 
-
                 var subUpdatePacket = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
                     ["user"] = user,
                 };

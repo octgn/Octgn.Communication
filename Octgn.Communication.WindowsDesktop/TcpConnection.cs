@@ -1,16 +1,18 @@
 ﻿using Octgn.Communication.TransportSDK;
+using Octgn.Communication.Utility;
 using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
     public class TcpConnection : ConnectionBase
     {
-        private static ILogger Log = LoggerFactory.Create(nameof(TcpConnection));
+#pragma warning disable IDE1006 // Naming Styles
+        private static readonly ILogger Log = LoggerFactory.Create(nameof(TcpConnection));
+#pragma warning restore IDE1006 // Naming Styles
 
         private readonly TcpClient _client;
         private PacketBuilder _packetBuilder;
@@ -80,9 +82,7 @@ namespace Octgn.Communication
 
             Log.Info($"{this}: Resolving IPAddresses for {host}...");
             IPAddress[] addresses = null;
-            await ResilliantTask.Run(async () => {
-                addresses = await Dns.GetHostAddressesAsync(host);
-            });
+            await ResilliantTask.Run(async () => addresses = await Dns.GetHostAddressesAsync(host));
 
             addresses = addresses ?? new IPAddress[0];
 
@@ -90,7 +90,7 @@ namespace Octgn.Communication
 
             if (addresses.Length == 0) throw new InvalidOperationException($"Unable to find any IP address for host {host} :(");
 
-            bool connected = false;
+            var connected = false;
             foreach (var address in addresses) {
                 try {
                     Log.Info($"{this}: Trying to connect to {address}:{port}...");
@@ -111,8 +111,10 @@ namespace Octgn.Communication
             }
         }
 
+        private readonly BackgroundTasks _backgroundTasks = new BackgroundTasks();
+
         protected override async Task ReadPacketsAsync() {
-            Log.Info(this.ToString() + ": " + nameof(ReadPacketsAsync));
+            Log.Info(this + ": " + nameof(ReadPacketsAsync));
 
             var client = _client;
             var buffer = new byte[256];
@@ -132,9 +134,8 @@ namespace Octgn.Communication
                 if (count == 0) return;
 
                 foreach (var packet in _packetBuilder.AddData(Serializer, buffer, count)) {
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
                     // Don't await this, it causes deadlocks.
-                    Task.Run(async () => {
+                    var task = Task.Run(async () => {
                         try {
                             if (!_isConnected) {
                                 Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
@@ -146,9 +147,14 @@ namespace Octgn.Communication
                             IsClosed = true;
                         }
                     });
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+                    _backgroundTasks.Schedule(task);
                 }
             }
+        }
+
+        public override void Dispose() {
+            _backgroundTasks.Dispose();
+            base.Dispose();
         }
 
         protected override async Task SendPacketImplementation(Packet packet)
@@ -161,7 +167,6 @@ namespace Octgn.Communication
 
                 var stream = _client?.GetStream();
                 if (stream == null) throw new InvalidOperationException($"{this}: Can't send packet {packet.Id}, there's no open connection");
-
 
                 await stream.WriteAsync(packetData, 0, packetData.Length, ClosedCancellationToken);
             } catch (ObjectDisposedException) {

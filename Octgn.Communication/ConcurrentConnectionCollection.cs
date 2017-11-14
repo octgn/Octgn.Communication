@@ -9,6 +9,7 @@ namespace Octgn.Communication
     public class ConcurrentConnectionCollection : IConnection
     {
 #pragma warning disable RCS1079 // Throwing of new NotImplementedException.
+        // This doesn't need a serializer, each connection has it's own.
         public ISerializer Serializer {
             get => throw new NotImplementedException();
             set => throw new NotImplementedException();
@@ -94,7 +95,7 @@ namespace Octgn.Communication
         }
 
         #region Not Implemented By Design
-#pragma warning disable RCS1079 // Throwing of new NotImplementedException.
+#pragma warning disable RCS1079 // Throwing of new NotImplementedException. By Design
 
         string IConnection.ConnectionId => throw new NotImplementedException("By Design");
 

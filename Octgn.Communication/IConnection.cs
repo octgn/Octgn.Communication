@@ -64,7 +64,9 @@ namespace Octgn.Communication
                 soc = Server.ToString();
             } else if (Client != null) {
                 soc = Client.ToString();
-            } else throw new InvalidOperationException($"No server of Client");
+            } else {
+                throw new InvalidOperationException($"No server of Client");
+            }
 
             return $"{soc}: {Connection}: {User}";
         }

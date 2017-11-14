@@ -331,9 +331,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
             try {
                 await _server.UpdateUserStatus(e.User, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
-#pragma warning disable CS0168 // Variable is declared but never used
-            } catch (ObjectDisposedException ex) {
-#pragma warning restore CS0168 // Variable is declared but never used
+            } catch (ObjectDisposedException) {
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }

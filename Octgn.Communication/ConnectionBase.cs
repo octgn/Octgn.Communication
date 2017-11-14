@@ -13,6 +13,7 @@ namespace Octgn.Communication
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(nameof(ConnectionBase));
 #pragma warning restore IDE1006 // Naming Styles
+
         public static TimeSpan WaitForResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         #region Identification
@@ -63,7 +64,10 @@ namespace Octgn.Communication
             remove => _requestReceived -= value;
         }
 
+#pragma warning disable RCS1159 // Use EventHandler<T>.
+        // RequestReceived returns a Task, and we need that.
         private event RequestReceived _requestReceived;
+#pragma warning restore RCS1159 // Use EventHandler<T>.
 
         private Task _readPacketsTask;
 
@@ -181,7 +185,6 @@ namespace Octgn.Communication
             if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
 
             if (!packet.RequiresAck) {
-
                 Log.TracePacketSent(this, packet);
 
                 await SendPacketImplementation(packet);
@@ -190,7 +193,7 @@ namespace Octgn.Communication
             }
 
             // Wait for the ack
-            var tcs = new TaskCompletionSource<Packet>();
+            var tcs = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
             try {
                 _awaitingAck.AddOrUpdate(packet.Id.Value, tcs, (a, b) => tcs);
 
@@ -201,7 +204,7 @@ namespace Octgn.Communication
 #if(DEBUG)
                 Log.Info($"{this}: Waiting for ack for #{packet.Id}");
 #endif
-                var result = await Task.WhenAny(tcs.Task, _closedCancellationTask, Task.Delay(WaitForResponseTimeout));
+                var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(WaitForResponseTimeout));
                 if (result == tcs.Task) {
 #if(DEBUG)
                     Log.Info($"Ack for #{packet.Id} received");
@@ -209,7 +212,7 @@ namespace Octgn.Communication
                     return tcs.Task.Result;
                 }
 
-                if (result == _closedCancellationTask) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
+                if (result == ClosedCancellationTask) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
 
                 throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
             } finally {
@@ -247,16 +250,15 @@ namespace Octgn.Communication
 
         private readonly CancellationTokenSource _closedCancellation = new CancellationTokenSource();
         private readonly CancellationTokenTaskSource<object> _closedCancellationTaskSource;
-        private readonly Task _closedCancellationTask;
 
         protected CancellationToken ClosedCancellationToken =>  _closedCancellation.Token;
-        protected Task ClosedCancellationTask => _closedCancellationTask;
+        protected Task ClosedCancellationTask { get; }
 
         public ISerializer Serializer { get; set; }
 
         protected ConnectionBase() {
             _closedCancellationTaskSource = new CancellationTokenTaskSource<object>(_closedCancellation.Token);
-            _closedCancellationTask = _closedCancellationTaskSource.Task;
+            ClosedCancellationTask = _closedCancellationTaskSource.Task;
         }
 
         protected virtual void Close(ConnectionClosedEventArgs args) {
@@ -278,9 +280,7 @@ namespace Octgn.Communication
 
             _closedCancellationTaskSource?.Dispose();
 
-#pragma warning disable IDE0007 // Use implicit type
             foreach (RequestReceived callback in (_requestReceived?.GetInvocationList() ?? Enumerable.Empty<Delegate>())) {
-#pragma warning restore IDE0007 // Use implicit type
                 _requestReceived -= callback;
             }
         }

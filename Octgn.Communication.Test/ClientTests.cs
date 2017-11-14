@@ -28,9 +28,7 @@ namespace Octgn.Communication.Test
                 try {
                     Signal.OnException += Signal_OnException;
                     using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("a"))) {
-                        client.Connected += (_, __) => {
-                            throw expectedException;
-                        };
+                        client.Connected += (_, __) => throw expectedException;
                         await client.Connect();
                     }
                 } finally {
@@ -54,9 +52,7 @@ namespace Octgn.Communication.Test
                     {
                         await client.Connect();
                         Assert.Fail("Should have thrown an exception");
-#pragma warning disable CS0168 // Variable is declared but never used
-                    } catch (InvalidOperationException ex)
-#pragma warning restore CS0168 // Variable is declared but never used
+                    } catch (InvalidOperationException)
                     {
                         Assert.Pass();
                     }

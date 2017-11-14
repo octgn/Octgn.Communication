@@ -175,6 +175,7 @@ namespace Octgn.Communication
         }
 
 #pragma warning disable RCS1159 // Use EventHandler<T>.
+        // This delegate returns a Task, and we need that for our implementation
         public event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
 

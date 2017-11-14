@@ -1,5 +1,6 @@
 ﻿using NUnit.Framework;
 using Octgn.Communication.Packets;
+using Octgn.Communication.Utility;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -17,8 +18,8 @@ namespace Octgn.Communication.Test
             using (var conB = new InMemoryConnection()) {
                 conA.Attach(conB);
 
-                int conACounter = 0;
-                int conBCounter = 0;
+                var conACounter = 0;
+                var conBCounter = 0;
 
                 conA.RequestReceived += (sender, args) => {
                     conACounter++;
@@ -52,7 +53,6 @@ namespace Octgn.Communication.Test
         }
     }
 
-
     public class InMemoryConnection : ConnectionBase
     {
         public override bool IsConnected => _isConnected;
@@ -83,6 +83,7 @@ namespace Octgn.Communication.Test
 
         public override void Dispose() {
             _isConnected = false;
+            _backgroundTasks.Dispose();
             base.Dispose();
         }
 
@@ -95,9 +96,10 @@ namespace Octgn.Communication.Test
             new TaskCompletionSource<Packet>(),
         });
 
+        private readonly BackgroundTasks _backgroundTasks = new BackgroundTasks();
+
         protected override async Task ReadPacketsAsync() {
             while (_isConnected) {
-
                 var tasks = new List<Task>(_signalPacketReceived.Select(x => (Task)x.Task)) {
                     ClosedCancellationTask
                 };
@@ -108,7 +110,7 @@ namespace Octgn.Communication.Test
 
                 var packetTask = task as Task<Packet>;
 
-                ProcessReceivedPacket(packetTask.Result);
+                _backgroundTasks.Schedule(ProcessReceivedPacket(packetTask.Result));
             }
         }
 
