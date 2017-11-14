@@ -6,6 +6,7 @@ using Octgn.Communication.Packets;
 
 namespace Octgn.Communication.Test.Serializers
 {
+    [TestFixture]
     public class JsonSerializerTests : TestBase
     {
         [TestCase]
