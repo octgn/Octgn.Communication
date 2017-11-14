@@ -16,11 +16,16 @@ namespace Octgn.Communication.Test
     {
         public static int MaxTimeout => Debugger.IsAttached ? (int)TimeSpan.FromMinutes(30).TotalMilliseconds : (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
 
-        private readonly Queue<TaskCompletionSource<object>> _tests = new Queue<TaskCompletionSource<object>>();
+        private static TaskCompletionSource<object> _currentTest;
+        private static readonly object _locker = new object();
 
         [SetUp]
         public void Setup() {
-            _tests.Enqueue(new TaskCompletionSource<object>());
+            lock (_locker) {
+                _currentTest?.Task.Wait();
+                _currentTest = new TaskCompletionSource<object>();
+            }
+
             ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
             LoggerFactory.DefaultMethod = (c) => new InMemoryLogger(c);
 
@@ -51,13 +56,14 @@ namespace Octgn.Communication.Test
 
             Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
 
-            var tcs = _tests.Dequeue();
-            tcs.SetResult(null);
+            _currentTest.SetResult(null);
         }
 
         [OneTimeTearDown]
         public void OneTimeTeardown() {
-            Task.WhenAll(_tests.Select(t=>t.Task));
+            lock (_locker) {
+                _currentTest?.Task.Wait();
+            }
         }
 
         public IPEndPoint GetEndpoint() {
