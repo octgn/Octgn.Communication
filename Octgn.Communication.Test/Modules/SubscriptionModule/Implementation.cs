@@ -13,6 +13,7 @@ using Octgn.Communication.Modules.SubscriptionModule;
 namespace Octgn.Communication.Test.Modules.SubscriptionModule
 {
     [TestFixture]
+    [NonParallelizable]
     [Parallelizable(ParallelScope.None)]
     public class Implementation : TestBase
     {
