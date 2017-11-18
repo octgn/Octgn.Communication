@@ -55,6 +55,7 @@ namespace Octgn.Communication
 
         private bool _authenticating = false;
         private async Task ConnectInternal() {
+            Log.Info($"{this}: Connecting...");
             await Connection.Connect();
             Connection.ConnectionClosed += Connection_ConnectionClosed;
             Connection.RequestReceived += Connection_RequestReceived;
@@ -63,10 +64,13 @@ namespace Octgn.Communication
 
             try {
                 _authenticating = true;
+                Log.Info($"{this}: Authenticating...");
                 result = await Authenticator.Authenticate(this, Connection);
 
                 if (!result.Successful) {
-                    throw new AuthenticationException(result.ErrorCode);
+                    var ex = new AuthenticationException(result.ErrorCode);
+                    Log.Info($"{this}: Authentication Failed {result.ErrorCode}: {ex.Message}");
+                    throw ex;
                 }
             } finally {
                 _authenticating = false;
@@ -77,7 +81,9 @@ namespace Octgn.Communication
             _connected = true;
             IsConnected = true;
 
+            Log.Info($"{this}: Firing connected events...");
             FireConnectedEvent();
+            Log.Info($"{this}: Connected");
         }
 
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
@@ -108,6 +114,8 @@ namespace Octgn.Communication
             var currentTry = 0;
             const int maxRetryCount = ReconnectRetryCount;
             try {
+                Log.Info($"{this}: Reconnecting...");
+
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
                     if (_disposed) break;
