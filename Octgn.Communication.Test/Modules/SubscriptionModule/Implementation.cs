@@ -23,7 +23,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
             var authenticationHandler = A.Fake<IAuthenticationHandler>();
 
-            A.CallTo(() => authenticationHandler.Authenticate(A<Server>.Ignored, A<IConnection>.Ignored, A<AuthenticationRequestPacket>.Ignored, A<int>.Ignored, A<CancellationToken>.Ignored))
+            A.CallTo(() => authenticationHandler.Authenticate(A<Server>.Ignored, A<IConnection>.Ignored, A<AuthenticationRequestPacket>.Ignored, A<CancellationToken>.Ignored))
                 .Returns(Task.FromResult(new AuthenticationResult() {
                     ErrorCode = "TestError"
                 }));
@@ -477,18 +477,18 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
             UserId = userId;
         }
 
-        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection, int waitTimeInMs = -1, CancellationToken cancellationToken = default(CancellationToken)) {
+        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection, CancellationToken cancellationToken = default(CancellationToken)) {
             var authRequest = new AuthenticationRequestPacket("asdf") {
                 ["userid"] = UserId
             };
-            var result = await client.Request(authRequest, waitTimeInMs, cancellationToken);
+            var result = await client.Request(authRequest, cancellationToken);
             return result.As<AuthenticationResult>();
         }
     }
 
     public class TestAuthenticationHandler : IAuthenticationHandler
     {
-        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
             var userId = (string)packet["userid"];
 
             return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));

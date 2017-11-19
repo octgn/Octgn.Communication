@@ -14,8 +14,8 @@ namespace Octgn.Communication
         string ConnectionId { get; }
         bool IsClosed { get; set; }
         ISerializer Serializer { get; set; }
-        Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken));
-        Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken));
+        Task Connect(CancellationToken cancellationToken = default(CancellationToken));
+        Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken));
         IConnection Clone();
     }
 

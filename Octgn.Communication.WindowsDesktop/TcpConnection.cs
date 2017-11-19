@@ -64,7 +64,7 @@ namespace Octgn.Communication
 
         private bool _calledConnect;
         private readonly object L_CALLEDCONNECT = new object();
-        public override async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
+        public override async Task Connect(CancellationToken cancellationToken = default(CancellationToken))
         {
             if (IsListenerConnection) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)}");
             if (IsClosed) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)} on a closed connection");
@@ -76,7 +76,6 @@ namespace Octgn.Communication
 
             Log.Info($"{this}: Starting to {nameof(Connect)} to {RemoteHost}...");
 
-            if (waitTimeInMs == Timeout.Infinite) waitTimeInMs = (int)WaitToConnectTimeout.TotalMilliseconds;
             var methodRuntime = new Stopwatch();
             methodRuntime.Start();
 
@@ -89,10 +88,8 @@ namespace Octgn.Communication
             Log.Info($"{this}: Resolving IPAddresses for {host}...");
             IPAddress[] addresses = null;
             cancellationToken.ThrowIfCancellationRequested();
-            if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
-            await ResilliantTask.Run(async () => addresses = await Dns.GetHostAddressesAsync(host));
+            await ResilliantTask.Run(async () => addresses = await Dns.GetHostAddressesAsync(host), cancellationToken: cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
 
             addresses = addresses ?? new IPAddress[0];
 
@@ -105,7 +102,6 @@ namespace Octgn.Communication
                 try {
                     Log.Info($"{this}: Trying to connect to {address}:{port}...");
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
                     await _client.ConnectAsync(address, port);
                     Log.Info($"{this}: Connected to {address}:{port}...");
                     connected = true;
@@ -153,7 +149,7 @@ namespace Octgn.Communication
                                 Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
                                 return;
                             }
-                            await ProcessReceivedPacket(packet);
+                            await ProcessReceivedPacket(packet, ClosedCancellationToken);
                         } catch (Exception ex) {
                             Signal.Exception(ex);
                             IsClosed = true;
@@ -169,7 +165,7 @@ namespace Octgn.Communication
             base.Dispose();
         }
 
-        protected override async Task SendPacketImplementation(Packet packet)
+        protected override async Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken)
         {
             try {
                 packet.Sent = DateTimeOffset.Now;
@@ -180,7 +176,9 @@ namespace Octgn.Communication
                 var stream = _client?.GetStream();
                 if (stream == null) throw new InvalidOperationException($"{this}: Can't send packet {packet.Id}, there's no open connection");
 
-                await stream.WriteAsync(packetData, 0, packetData.Length, ClosedCancellationToken);
+                using (var combinedCancellations = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ClosedCancellationToken)) {
+                    await stream.WriteAsync(packetData, 0, packetData.Length, combinedCancellations.Token);
+                }
             } catch (ObjectDisposedException) {
                 IsClosed = true;
                 throw new DisconnectedException(this.ToString());

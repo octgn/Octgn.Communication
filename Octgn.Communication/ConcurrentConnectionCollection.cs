@@ -100,11 +100,11 @@ namespace Octgn.Communication
 
         string IConnection.ConnectionId => throw new NotImplementedException("By Design");
 
-        Task IConnection.Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        Task IConnection.Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             throw new NotImplementedException("By Design");
         }
 
-        Task<ResponsePacket> IConnection.Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        Task<ResponsePacket> IConnection.Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
             throw new NotImplementedException("By Design");
         }
 

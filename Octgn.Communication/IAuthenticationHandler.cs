@@ -6,6 +6,6 @@ namespace Octgn.Communication
 {
     public interface IAuthenticationHandler
     {
-        Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken));
+        Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, CancellationToken cancellationToken = default(CancellationToken));
     }
 }

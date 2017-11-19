@@ -33,15 +33,15 @@ namespace Octgn.Communication.Test
             _connection = connection;
         }
 
-        public async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task Connect(CancellationToken cancellationToken = default(CancellationToken))
         {
-            await _connection.Connect(waitTimeInMs, cancellationToken);
+            await _connection.Connect(cancellationToken);
         }
 
-        public async Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken))
         {
             await Task.Delay(2000);
-            return await _connection.Request(packet);
+            return await _connection.Request(packet, cancellationToken);
         }
 
         public IConnection Clone()

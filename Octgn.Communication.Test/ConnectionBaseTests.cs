@@ -73,13 +73,13 @@ namespace Octgn.Communication.Test
             connection._attachedConnection = this;
         }
 
-        public override Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public override Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             if(_attachedConnection == null)
                 throw new InvalidOperationException("Nothing to connect to.");
 
             _isConnected = true;
 
-            return base.Connect();
+            return base.Connect(cancellationToken);
         }
 
         public override void Dispose() {
@@ -111,11 +111,11 @@ namespace Octgn.Communication.Test
 
                 var packetTask = task as Task<Packet>;
 
-                _backgroundTasks.Schedule(ProcessReceivedPacket(packetTask.Result));
+                _backgroundTasks.Schedule(ProcessReceivedPacket(packetTask.Result, this.ClosedCancellationToken));
             }
         }
 
-        protected override Task SendPacketImplementation(Packet packet) {
+        protected override Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken) {
             _attachedConnection.AddPacket(packet);
             return Task.CompletedTask;
         }

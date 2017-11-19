@@ -49,19 +49,19 @@ namespace Octgn.Communication
         }
 
         private bool _connected;
-        public Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             if (_connected) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
 
-            return ConnectInternal(waitTimeInMs, cancellationToken);
+            return ConnectInternal(cancellationToken);
         }
 
         private bool _authenticating = false;
-        private async Task ConnectInternal(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        private async Task ConnectInternal(CancellationToken cancellationToken = default(CancellationToken)) {
             Log.Info($"{this}: Connecting...");
             var waitTimeoutTimer = new Stopwatch();
             waitTimeoutTimer.Start();
 
-            await Connection.Connect(waitTimeInMs, cancellationToken);
+            await Connection.Connect(cancellationToken);
             Connection.ConnectionClosed += Connection_ConnectionClosed;
             Connection.RequestReceived += Connection_RequestReceived;
 
@@ -71,7 +71,7 @@ namespace Octgn.Communication
                 _authenticating = true;
                 Log.Info($"{this}: Authenticating...");
 
-                result = await Authenticator.Authenticate(this, Connection, waitTimeInMs - (int)waitTimeoutTimer.ElapsedMilliseconds, cancellationToken);
+                result = await Authenticator.Authenticate(this, Connection, cancellationToken);
 
                 if (!result.Successful) {
                     var ex = new AuthenticationException(result.ErrorCode);
@@ -187,9 +187,9 @@ namespace Octgn.Communication
             }
         }
 
-        public Task<ResponsePacket> Request(RequestPacket request, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public Task<ResponsePacket> Request(RequestPacket request, CancellationToken cancellationToken = default(CancellationToken)) {
             if (!IsConnected && !_authenticating) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
-            return Connection.Request(request);
+            return Connection.Request(request, cancellationToken);
         }
 
 #pragma warning disable RCS1159 // Use EventHandler<T>.

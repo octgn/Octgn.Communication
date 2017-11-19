@@ -35,7 +35,7 @@ namespace Octgn.Communication
         private bool _calledRequestReceived;
         private readonly object _startedReadingPacketsLock = new object();
 
-        public virtual async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public virtual async Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             await Task.Run(() => {
                 lock (_startedReadingPacketsLock) {
                     _calledConnect = true;
@@ -91,7 +91,7 @@ namespace Octgn.Communication
 
         protected abstract Task ReadPacketsAsync();
 
-        protected async Task ProcessReceivedPacket(Packet packet) {
+        protected async Task ProcessReceivedPacket(Packet packet, CancellationToken cancellationToken) {
             async Task Respond(ResponsePacket response) {
                 if (response == null) throw new ArgumentNullException(nameof(response));
 
@@ -104,7 +104,7 @@ namespace Octgn.Communication
                 StampPacketBeforeSend(response);
 
                 try {
-                    await SendPacket(response);
+                    await SendPacket(response, cancellationToken);
                 } catch (DisconnectedException ex) {
                     Log.Warn($"{this}: {nameof(ProcessReceivedPacket)}: Error sending response packet {response}, disconnected.", ex);
                 }
@@ -162,10 +162,10 @@ namespace Octgn.Communication
 
         #region RPC
 
-        public async Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+        public async Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
             if (IsClosed) throw new InvalidOperationException($"{this}: Connection is closed.");
             StampPacketBeforeSend(packet);
-            var response = await SendPacket(packet);
+            var response = await SendPacket(packet, cancellationToken);
 
             if (!(response is ResponsePacket responsePacket))
                 throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response.GetType().Name}");
@@ -182,14 +182,13 @@ namespace Octgn.Communication
             packet.Sent = DateTimeOffset.Now;
         }
 
-        protected async Task<Packet> SendPacket(Packet packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
-            if (waitTimeInMs == Timeout.Infinite) waitTimeInMs = (int)WaitForResponseTimeout.TotalMilliseconds;
+        protected async Task<Packet> SendPacket(Packet packet, CancellationToken cancellationToken) {
             if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
 
             if (!packet.RequiresAck) {
                 Log.TracePacketSent(this, packet);
 
-                await SendPacketImplementation(packet);
+                await SendPacketImplementation(packet, cancellationToken);
 
                 return null;
             }
@@ -201,13 +200,13 @@ namespace Octgn.Communication
 
                 Log.TracePacketSent(this, packet);
 
-                await SendPacketImplementation(packet);
+                await SendPacketImplementation(packet, cancellationToken);
 
                 using (var sendPacketCancellationTokenSource = new CancellationTokenTaskSource<object>(cancellationToken)) {
 #if (DEBUG)
                     Log.Info($"{this}: Waiting for ack for #{packet.Id}");
 #endif
-                    var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(waitTimeInMs), sendPacketCancellationTokenSource.Task);
+                    var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(WaitForResponseTimeout), sendPacketCancellationTokenSource.Task);
                     if (result == tcs.Task) {
 #if (DEBUG)
                         Log.Info($"Ack for #{packet.Id} received");
@@ -231,7 +230,7 @@ namespace Octgn.Communication
             }
         }
 
-        protected abstract Task SendPacketImplementation(Packet packet);
+        protected abstract Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken);
 
         public abstract IConnection Clone();
 
