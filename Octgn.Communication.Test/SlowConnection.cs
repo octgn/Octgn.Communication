@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System;
+using System.Threading;
 
 namespace Octgn.Communication.Test
 {
@@ -32,12 +33,12 @@ namespace Octgn.Communication.Test
             _connection = connection;
         }
 
-        public async Task Connect()
+        public async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
         {
-            await _connection.Connect();
+            await _connection.Connect(waitTimeInMs, cancellationToken);
         }
 
-        public async Task<ResponsePacket> Request(RequestPacket packet)
+        public async Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
         {
             await Task.Delay(2000);
             return await _connection.Request(packet);

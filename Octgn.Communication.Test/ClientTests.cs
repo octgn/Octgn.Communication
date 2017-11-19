@@ -3,6 +3,7 @@ using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Test
@@ -102,18 +103,18 @@ namespace Octgn.Communication.Test
             UserId = userId;
         }
 
-        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection) {
+        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             var authRequest = new AuthenticationRequestPacket("asdf") {
                 ["userid"] = UserId
             };
-            var result = await client.Request(authRequest);
+            var result = await client.Request(authRequest, waitTimeInMs, cancellationToken);
             return result.As<AuthenticationResult>();
         }
     }
 
     public class TestAuthenticationHandler : IAuthenticationHandler
     {
-        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet) {
+        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             var userId = (string)packet["userid"];
 
             return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));

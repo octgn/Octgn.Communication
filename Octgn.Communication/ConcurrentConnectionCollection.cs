@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System.Linq;
+using System.Threading;
 
 namespace Octgn.Communication
 {
@@ -71,7 +72,7 @@ namespace Octgn.Communication
                 args.Connection.ConnectionClosed -= Item_ConnectionClosed;
                 _collection.Remove(args.Connection);
 
-                if(_collection.Count <= 0) {
+                if (_collection.Count <= 0) {
                     ConnectionClosed?.Invoke(this, new ConnectionClosedEventArgs() { Connection = this });
                 }
             }
@@ -82,7 +83,7 @@ namespace Octgn.Communication
                 connection.ConnectionClosed -= Item_ConnectionClosed;
                 _collection.Remove(connection);
 
-                if(_collection.Count <= 0) {
+                if (_collection.Count <= 0) {
                     ConnectionClosed?.Invoke(this, new ConnectionClosedEventArgs() { Connection = this });
                 }
             }
@@ -99,11 +100,11 @@ namespace Octgn.Communication
 
         string IConnection.ConnectionId => throw new NotImplementedException("By Design");
 
-        Task IConnection.Connect() {
+        Task IConnection.Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             throw new NotImplementedException("By Design");
         }
 
-        Task<ResponsePacket> IConnection.Request(RequestPacket packet) {
+        Task<ResponsePacket> IConnection.Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             throw new NotImplementedException("By Design");
         }
 

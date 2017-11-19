@@ -1,5 +1,6 @@
 ﻿using Octgn.Communication.Packets;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
@@ -13,8 +14,8 @@ namespace Octgn.Communication
         string ConnectionId { get; }
         bool IsClosed { get; set; }
         ISerializer Serializer { get; set; }
-        Task Connect();
-        Task<ResponsePacket> Request(RequestPacket packet);
+        Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken));
+        Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken));
         IConnection Clone();
     }
 

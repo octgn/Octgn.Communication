@@ -1,6 +1,8 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
@@ -47,16 +49,19 @@ namespace Octgn.Communication
         }
 
         private bool _connected;
-        public Task Connect() {
+        public Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             if (_connected) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
 
-            return ConnectInternal();
+            return ConnectInternal(waitTimeInMs, cancellationToken);
         }
 
         private bool _authenticating = false;
-        private async Task ConnectInternal() {
+        private async Task ConnectInternal(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             Log.Info($"{this}: Connecting...");
-            await Connection.Connect();
+            var waitTimeoutTimer = new Stopwatch();
+            waitTimeoutTimer.Start();
+
+            await Connection.Connect(waitTimeInMs, cancellationToken);
             Connection.ConnectionClosed += Connection_ConnectionClosed;
             Connection.RequestReceived += Connection_RequestReceived;
 
@@ -65,7 +70,8 @@ namespace Octgn.Communication
             try {
                 _authenticating = true;
                 Log.Info($"{this}: Authenticating...");
-                result = await Authenticator.Authenticate(this, Connection);
+
+                result = await Authenticator.Authenticate(this, Connection, waitTimeInMs - (int)waitTimeoutTimer.ElapsedMilliseconds, cancellationToken);
 
                 if (!result.Successful) {
                     var ex = new AuthenticationException(result.ErrorCode);
@@ -81,9 +87,13 @@ namespace Octgn.Communication
             _connected = true;
             IsConnected = true;
 
+            // Should do this before an operation that might block
+            cancellationToken.ThrowIfCancellationRequested();
+
             Log.Info($"{this}: Firing connected events...");
             FireConnectedEvent();
             Log.Info($"{this}: Connected");
+            waitTimeoutTimer.Stop();
         }
 
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
@@ -177,7 +187,7 @@ namespace Octgn.Communication
             }
         }
 
-        public Task<ResponsePacket> Request(RequestPacket request) {
+        public Task<ResponsePacket> Request(RequestPacket request, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             if (!IsConnected && !_authenticating) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
             return Connection.Request(request);
         }

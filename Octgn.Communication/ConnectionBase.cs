@@ -15,6 +15,7 @@ namespace Octgn.Communication
 #pragma warning restore IDE1006 // Naming Styles
 
         public static TimeSpan WaitForResponseTimeout { get; set; } = TimeSpan.FromSeconds(15);
+        public static TimeSpan WaitToConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         #region Identification
         public string ConnectionId { get; } = UID.Generate(++_nextSeed);
@@ -34,7 +35,7 @@ namespace Octgn.Communication
         private bool _calledRequestReceived;
         private readonly object _startedReadingPacketsLock = new object();
 
-        public virtual async Task Connect() {
+        public virtual async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             await Task.Run(() => {
                 lock (_startedReadingPacketsLock) {
                     _calledConnect = true;
@@ -161,7 +162,7 @@ namespace Octgn.Communication
 
         #region RPC
 
-        public async Task<ResponsePacket> Request(RequestPacket packet) {
+        public async Task<ResponsePacket> Request(RequestPacket packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             if (IsClosed) throw new InvalidOperationException($"{this}: Connection is closed.");
             StampPacketBeforeSend(packet);
             var response = await SendPacket(packet);
@@ -181,7 +182,8 @@ namespace Octgn.Communication
             packet.Sent = DateTimeOffset.Now;
         }
 
-        protected async Task<Packet> SendPacket(Packet packet) {
+        protected async Task<Packet> SendPacket(Packet packet, int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
+            if (waitTimeInMs == Timeout.Infinite) waitTimeInMs = (int)WaitForResponseTimeout.TotalMilliseconds;
             if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
 
             if (!packet.RequiresAck) {
@@ -201,20 +203,24 @@ namespace Octgn.Communication
 
                 await SendPacketImplementation(packet);
 
-#if(DEBUG)
-                Log.Info($"{this}: Waiting for ack for #{packet.Id}");
+                using (var sendPacketCancellationTokenSource = new CancellationTokenTaskSource<object>(cancellationToken)) {
+#if (DEBUG)
+                    Log.Info($"{this}: Waiting for ack for #{packet.Id}");
 #endif
-                var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(WaitForResponseTimeout));
-                if (result == tcs.Task) {
-#if(DEBUG)
-                    Log.Info($"Ack for #{packet.Id} received");
+                    var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(waitTimeInMs), sendPacketCancellationTokenSource.Task);
+                    if (result == tcs.Task) {
+#if (DEBUG)
+                        Log.Info($"Ack for #{packet.Id} received");
 #endif
-                    return tcs.Task.Result;
+                        return tcs.Task.Result;
+                    }
+
+                    if (result == ClosedCancellationTask) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
+
+                    if (result == sendPacketCancellationTokenSource.Task) throw new OperationCanceledException(cancellationToken);
+
+                    throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
                 }
-
-                if (result == ClosedCancellationTask) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
-
-                throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
             } finally {
                 Log.Info($"{this}: Finished waiting for Ack for #{packet.Id}");
 

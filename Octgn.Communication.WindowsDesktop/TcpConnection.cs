@@ -1,9 +1,11 @@
 ﻿using Octgn.Communication.TransportSDK;
 using Octgn.Communication.Utility;
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
@@ -62,7 +64,7 @@ namespace Octgn.Communication
 
         private bool _calledConnect;
         private readonly object L_CALLEDCONNECT = new object();
-        public override async Task Connect()
+        public override async Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (IsListenerConnection) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)}");
             if (IsClosed) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)} on a closed connection");
@@ -74,6 +76,10 @@ namespace Octgn.Communication
 
             Log.Info($"{this}: Starting to {nameof(Connect)} to {RemoteHost}...");
 
+            if (waitTimeInMs == Timeout.Infinite) waitTimeInMs = (int)WaitToConnectTimeout.TotalMilliseconds;
+            var methodRuntime = new Stopwatch();
+            methodRuntime.Start();
+
             var hostParts = RemoteHost.Split(':');
             if (hostParts.Length != 2)
                 throw new FormatException($"{this}: {nameof(RemoteHost)} is in the wrong format '{RemoteHost}.' Should be in the format 'hostname:port' for example 'localhost:4356' or 'jumbo.fried.jims.aquarium:4453'");
@@ -82,7 +88,11 @@ namespace Octgn.Communication
 
             Log.Info($"{this}: Resolving IPAddresses for {host}...");
             IPAddress[] addresses = null;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
             await ResilliantTask.Run(async () => addresses = await Dns.GetHostAddressesAsync(host));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
 
             addresses = addresses ?? new IPAddress[0];
 
@@ -94,6 +104,8 @@ namespace Octgn.Communication
             foreach (var address in addresses) {
                 try {
                     Log.Info($"{this}: Trying to connect to {address}:{port}...");
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (methodRuntime.ElapsedMilliseconds > waitTimeInMs) throw new TimeoutException();
                     await _client.ConnectAsync(address, port);
                     Log.Info($"{this}: Connected to {address}:{port}...");
                     connected = true;

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Test
@@ -72,7 +73,7 @@ namespace Octgn.Communication.Test
             connection._attachedConnection = this;
         }
 
-        public override Task Connect() {
+        public override Task Connect(int waitTimeInMs = Timeout.Infinite, CancellationToken cancellationToken = default(CancellationToken)) {
             if(_attachedConnection == null)
                 throw new InvalidOperationException("Nothing to connect to.");
 
