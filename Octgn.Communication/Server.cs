@@ -201,8 +201,8 @@ namespace Octgn.Communication
             } catch (Exception ex) {
                 Signal.Exception(ex);
 
-                var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "", true);
-                args.Response = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, ex.Message, true));
+                var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "UnhandledServerError", true);
+                args.Response = new ResponsePacket(args.Request, err);
             }
         }
     }
