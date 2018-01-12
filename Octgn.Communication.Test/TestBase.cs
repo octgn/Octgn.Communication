@@ -81,8 +81,7 @@ namespace Octgn.Communication.Test
             }
         }
 
-        public IPEndPoint GetEndpoint() {
-            return new IPEndPoint(IPAddress.Loopback, 7920);
-        }
+        private static int _currentPort = 7920;
+        public static int NextPort => Interlocked.Increment(ref _currentPort);
     }
 }

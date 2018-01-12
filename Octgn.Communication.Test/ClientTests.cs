@@ -3,6 +3,7 @@ using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
 using System;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,9 +15,9 @@ namespace Octgn.Communication.Test
         [TestCase]
         public async Task ConnectSucceeds_ConnectedEvent_ThrowsException()
         {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
                 var expectedException = new NotImplementedException();
@@ -28,7 +29,7 @@ namespace Octgn.Communication.Test
 
                 try {
                     Signal.OnException += Signal_OnException;
-                    using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("a"))) {
+                    using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("a"))) {
                         client.Connected += (_, __) => throw expectedException;
                         await client.Connect();
                     }
@@ -41,12 +42,12 @@ namespace Octgn.Communication.Test
         [TestCase]
         public async Task Connect_ThrowsException_ConnectCalledMoreThanOnce()
         {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("a"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("a"))) {
                     await client.Connect();
 
                     try
@@ -64,12 +65,12 @@ namespace Octgn.Communication.Test
         [TestCase]
         public async Task RequestReceived_GetsInvoked_WhenRequestIsReceived()
         {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("userA"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("userA"))) {
                     await client.Connect();
 
                     var tcs = new TaskCompletionSource<RequestPacket>();

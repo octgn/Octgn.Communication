@@ -19,7 +19,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
     {
         [TestCase]
         public async Task FailedAuthenticationCausesServerToDisconnectClient() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7902);
+            var port = NextPort;
 
             var authenticationHandler = A.Fake<IAuthenticationHandler>();
 
@@ -28,7 +28,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                     ErrorCode = "TestError"
                 }));
 
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), authenticationHandler)) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), authenticationHandler)) {
                 var serverModule = new TestServerModule();
                 server.Attach(serverModule);
                 server.IsEnabled = true;
@@ -39,7 +39,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         args.IsHandled = true;
                 };
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("bad"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("bad"))) {
                     try {
                         await client.Connect();
                     } catch (AuthenticationException ex) {
@@ -60,15 +60,15 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         [TestCase]
         public async Task SendUserMessage() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7903);
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 
@@ -105,17 +105,17 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         [TestCase]
         public async Task ReceiveUserSubscriptionUpdates() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7907);
+            var port = NextPort;
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), serializer, new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
 
@@ -180,17 +180,17 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         [TestCase]
         public async Task ReceiveUserUpdates() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7908);
+            var port = NextPort;
 
             TestConnectionProvider userProvider = null;
 
-            using (var server = new Server(new TcpListener(endpoint), userProvider = new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), userProvider = new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 
@@ -244,12 +244,12 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         [TestCase]
         public async Task SendMessageToOfflineUser_ThrowsException() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7906);
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA"))) {
                     await clientA.Connect();
 
                     try {
@@ -264,17 +264,17 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         [TestCase]
         public async Task SendMessage_Fails_IfNoResponseNotHandledByReceiver() {
-            var endpoint = new IPEndPoint(IPAddress.Loopback, 7910);
+            var port = NextPort;
 
             ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(60);
 
-            using (var server = new Server(new TcpListener(endpoint), new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 

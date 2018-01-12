@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Octgn.Communication.Modules;
 using Octgn.Communication.Serializers;
+using System.Net;
 
 namespace Octgn.Communication.Test
 {
@@ -12,12 +13,12 @@ namespace Octgn.Communication.Test
     {
         [TestCase]
         public async Task TcpLayerOperates() {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("user"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("user"))) {
                     await client.Connect();
                 }
             }
@@ -25,15 +26,15 @@ namespace Octgn.Communication.Test
 
         [TestCase]
         public async Task TcpLayerSurvivesDisconnect() {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), serializer, new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var client = new Client(new TcpConnection(endpoint.ToString()), serializer, new TestAuthenticator("user"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("user"))) {
                     client.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     await client.Connect();
 
@@ -70,14 +71,14 @@ namespace Octgn.Communication.Test
         [TestCase]
         public async Task ClientAsyncActuallyWaits()
         {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new SlowListener(new TcpListener(endpoint)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     await clientA.Connect();
                     await clientB.Connect();
 
@@ -90,14 +91,14 @@ namespace Octgn.Communication.Test
 
         [TestCase]
         public async Task CanSendTwoRequests() {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 server.Attach(new PingModule());
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
                     await clientA.Connect();
                     await clientB.Connect();
 
@@ -109,15 +110,15 @@ namespace Octgn.Communication.Test
 
         [TestCase]
         public async Task UnhandledPacketFailsProperly() {
-            var endpoint = GetEndpoint();
+            var port = NextPort;
 
-            using (var server = new Server(new TcpListener(endpoint), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
                 // Don't attach the ping module, that way the server won't know how to handle the ping request.
                 //server.Attach(new PingModule());
 
                 server.IsEnabled = true;
 
-                using (var clientA = new Client(new TcpConnection(endpoint.ToString()), new XmlSerializer(), new TestAuthenticator("clientA"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA"))) {
                     await clientA.Connect();
 
                     var delayTask = Task.Delay(10000);

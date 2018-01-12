@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public class Client : IDisposable
+    public abstract class Client : IDisposable
     {
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(typeof(Client));
@@ -42,15 +42,15 @@ namespace Octgn.Communication
 
         public IAuthenticator Authenticator { get; }
 
-        public Client(IConnection connection, ISerializer serializer, IAuthenticator authenticator) {
-            Connection = connection ?? throw new ArgumentNullException(nameof(connection));
-            Connection.Serializer = Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        protected abstract IConnection CreateConnection();
+
+        public Client(ISerializer serializer, IAuthenticator authenticator) {
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
         }
 
-        private bool _connected;
         public Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
-            if (_connected) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
+            if (Connection != null) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
 
             return ConnectInternal(cancellationToken);
         }
@@ -61,39 +61,45 @@ namespace Octgn.Communication
             var waitTimeoutTimer = new Stopwatch();
             waitTimeoutTimer.Start();
 
-            await Connection.Connect(cancellationToken);
-            Connection.ConnectionClosed += Connection_ConnectionClosed;
-            Connection.RequestReceived += Connection_RequestReceived;
-
-            AuthenticationResult result = null;
-
             try {
-                _authenticating = true;
-                Log.Info($"{this}: Authenticating...");
+                Connection = CreateConnection();
+                Connection.Serializer = Serializer;
 
-                result = await Authenticator.Authenticate(this, Connection, cancellationToken);
+                await Connection.Connect(cancellationToken);
+                Connection.ConnectionClosed += Connection_ConnectionClosed;
+                Connection.RequestReceived += Connection_RequestReceived;
 
-                if (!result.Successful) {
-                    var ex = new AuthenticationException(result.ErrorCode);
-                    Log.Info($"{this}: Authentication Failed {result.ErrorCode}: {ex.Message}");
-                    throw ex;
+                AuthenticationResult result = null;
+
+                try {
+                    _authenticating = true;
+                    Log.Info($"{this}: Authenticating...");
+
+                    result = await Authenticator.Authenticate(this, Connection, cancellationToken);
+
+                    if (!result.Successful) {
+                        var ex = new AuthenticationException(result.ErrorCode);
+                        Log.Info($"{this}: Authentication Failed {result.ErrorCode}: {ex.Message}");
+                        throw ex;
+                    }
+                } finally {
+                    _authenticating = false;
                 }
-            } finally {
-                _authenticating = false;
+
+                // Should do this before an operation that might block
+                cancellationToken.ThrowIfCancellationRequested();
+
+                IsConnected = true;
+                this.User = result.User;
+
+                Log.Info($"{this}: Firing connected events...");
+                FireConnectedEvent();
+                Log.Info($"{this}: Connected");
+                waitTimeoutTimer.Stop();
+            } catch {
+                Connection = null;
+                throw;
             }
-
-            this.User = result.User;
-
-            _connected = true;
-            IsConnected = true;
-
-            // Should do this before an operation that might block
-            cancellationToken.ThrowIfCancellationRequested();
-
-            Log.Info($"{this}: Firing connected events...");
-            FireConnectedEvent();
-            Log.Info($"{this}: Connected");
-            waitTimeoutTimer.Stop();
         }
 
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
@@ -183,7 +189,6 @@ namespace Octgn.Communication
             _clientModules.Clear();
             if (Connection != null) {
                 Connection.IsClosed = true;
-                (Connection as IDisposable)?.Dispose();
             }
         }
 
@@ -212,8 +217,10 @@ namespace Octgn.Communication
                         break;
                 }
 
-                if(!args.IsHandled) {
-                    await RequestReceived?.Invoke(this, args);
+                // Copy locally in case it become null
+                var eventHandler = RequestReceived;
+                if(!args.IsHandled && eventHandler != null) {
+                    await eventHandler.Invoke(this, args);
                 }
             } catch (Exception ex) {
                 Signal.Exception(ex);
