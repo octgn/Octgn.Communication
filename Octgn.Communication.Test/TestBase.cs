@@ -35,16 +35,27 @@ namespace Octgn.Communication.Test
             while (InMemoryLogger.LogMessages.Count > 0) {
                 InMemoryLogger.LogMessages.TryDequeue(out var result);
             }
+            Signal.OnException += Signal_OnException;
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
+        }
+
+        private ILogger SignalLog = LoggerFactory.Create("SIGNAL");
+
+        private void Signal_OnException(object sender, ExceptionEventArgs args) {
+            SignalLog.Error(args.Message);
         }
 
         [TearDown]
         public void TearDown() {
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Test complete.");
+
+            Signal.OnException -= Signal_OnException;
+
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Cleaned up GC");
+
 
             var exceptionCount = Signal.Exceptions.Count;
 
