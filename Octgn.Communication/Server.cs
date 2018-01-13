@@ -151,8 +151,8 @@ namespace Octgn.Communication
                 }
             }
             if (sendCount < 1) {
-                Log.Warn($"Unable to deliver message to user {destination}, they are offline or the destination is invalid.");
-                throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver message to user {destination}, they are offline of the destination is invalid.", false);
+                Log.Warn($"Unable to deliver packet to user {destination}, they are offline or the destination is invalid.");
+                throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver packet to user {destination}, they are offline of the destination is invalid.", false);
             }
 
             Log.Info($"Sent {request} to {sendCount} clients");
