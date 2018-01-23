@@ -135,10 +135,10 @@ namespace Octgn.Communication
                         args.IsHandled = args.Response != null;
                     }
 
-                    var unhandledRequestResponse = new ResponsePacket(args.Request, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Request} not expected.", false));
+                    var unhandledRequestResponse = new ResponsePacket(requestPacket, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
 
                     var response = args.Response
-                        ?? (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Request, null));
+                        ?? (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(requestPacket, null));
 
                     await Respond(response);
 
