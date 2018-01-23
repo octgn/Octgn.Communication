@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.Serialization;
 
 namespace Octgn.Communication
 {
-    [Serializable]
+    [DataContract]
     public class User : IEquatable<User>
     {
         public User() { }
@@ -19,7 +20,10 @@ namespace Octgn.Communication
             DisplayName = displayName;
         }
 
+        [DataMember]
         public string Id { get; set; }
+
+        [DataMember]
         public string DisplayName { get; set; }
 
         public override string ToString() {
