@@ -25,6 +25,11 @@ namespace Octgn.Communication.Packets
             Name = name;
         }
 
+        public RequestPacket(RequestPacket request)
+            : this(request.Name, request.Properties) {
+
+        }
+
         public override byte PacketTypeId => 3;
 
         public override bool RequiresAck => true;
