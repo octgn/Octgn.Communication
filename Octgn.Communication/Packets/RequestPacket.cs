@@ -27,7 +27,8 @@ namespace Octgn.Communication.Packets
 
         public RequestPacket(RequestPacket request)
             : this(request.Name, request.Properties) {
-
+            this.Origin = request.Origin;
+            this.Destination = request.Destination;
         }
 
         public override byte PacketTypeId => 3;
