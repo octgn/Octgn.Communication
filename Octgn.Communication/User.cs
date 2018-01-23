@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 namespace Octgn.Communication
 {
     [DataContract]
+    [Serializable]
     public class User : IEquatable<User>
     {
         public User() { }
