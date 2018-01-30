@@ -58,8 +58,6 @@ namespace Octgn.Communication
         private bool _authenticating = false;
         private async Task ConnectInternal(CancellationToken cancellationToken = default(CancellationToken)) {
             Log.Info($"{this}: Connecting...");
-            var waitTimeoutTimer = new Stopwatch();
-            waitTimeoutTimer.Start();
 
             try {
                 Connection = CreateConnection();
@@ -95,9 +93,12 @@ namespace Octgn.Communication
                 Log.Info($"{this}: Firing connected events...");
                 FireConnectedEvent();
                 Log.Info($"{this}: Connected");
-                waitTimeoutTimer.Stop();
             } catch {
-                Connection = null;
+                if (Connection != null) {
+                    Connection.ConnectionClosed -= Connection_ConnectionClosed;
+                    Connection.RequestReceived -= Connection_RequestReceived;
+                    Connection = null;
+                }
                 throw;
             }
         }
@@ -105,19 +106,15 @@ namespace Octgn.Communication
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             try
             {
-                args.Connection.ConnectionClosed += Connection_ConnectionClosed;
-                Log.Warn("{this}: Disconnected", args.Exception);
                 IsConnected = false;
-                FireDisconnectedEvent();
-                if (_disposed)
-                {
-                    Log.Info($"{this}: {args.Connection}: {User}: Disposed, not going to try and reconnect");
-                    return;
-                }
+                args.Connection.ConnectionClosed -= Connection_ConnectionClosed;
+                args.Connection.RequestReceived -= Connection_RequestReceived;
 
+                Log.Warn($"{this}: Disconnected", args.Exception);
+
+                FireDisconnectedEvent();
                 await ReconnectAsync();
-            } catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 Signal.Exception(ex, nameof(Connection_ConnectionClosed));
             }
         }
@@ -134,20 +131,10 @@ namespace Octgn.Communication
 
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
-                    if (_disposed) break;
-
-                    if (!Connection.IsClosed)
-                        throw new InvalidOperationException($"{this}: {nameof(ReconnectAsync)}: Can't reconnect if the {nameof(Connection)} is not closed.");
-
-                    Connection.ConnectionClosed -= Connection_ConnectionClosed;
-                    Connection.RequestReceived -= Connection_RequestReceived;
-
-                    Connection = Connection.Clone();
-
-                    if (Connection.IsClosed)
-                        throw new InvalidOperationException($"{this}: {nameof(ReconnectAsync)}: Can't reconnect if the cloned {nameof(Connection)} is already closed.");
-
-                    Connection.Serializer = this.Serializer;
+                    if (_disposed) {
+                        Log.Warn($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
+                        break;
+                    }
 
                     Log.Info($"{this}: {nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
 
