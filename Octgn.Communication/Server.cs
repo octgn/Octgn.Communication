@@ -176,7 +176,9 @@ namespace Octgn.Communication
                 if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
                     var result = await _authenticationHandler.Authenticate(this, args.Context.Connection, (AuthenticationRequestPacket)args.Request);
 
-                    await ConnectionProvider.AddConnection(args.Context.Connection, result.User);
+                    if (result.Successful) {
+                        await ConnectionProvider.AddConnection(args.Context.Connection, result.User);
+                    }
 
                     args.Response = new ResponsePacket(args.Request, result);
                     args.IsHandled = true;

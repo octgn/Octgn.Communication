@@ -28,6 +28,11 @@ namespace Octgn.Communication
         private readonly ConcurrentDictionary<IConnection, User> _connectionToUsers = new ConcurrentDictionary<IConnection, User>();
 
         public async Task AddConnection(IConnection connection, User user) {
+            if (connection == null) throw new ArgumentNullException(nameof(connection));
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrWhiteSpace(user.Id)) throw new InvalidOperationException($"User {user} is invalid: {nameof(User.Id)}");
+            if (string.IsNullOrWhiteSpace(user.DisplayName)) throw new InvalidOperationException($"User {user} is invalid: {nameof(User.DisplayName)}");
+
             if(!_connectionToUsers.TryAdd(connection, user))
                throw new InvalidOperationException($"{user} already mapped to {connection}");
 
@@ -70,6 +75,8 @@ namespace Octgn.Communication
         }
 
         public IEnumerable<IConnection> GetConnections(string userId) {
+            if (userId == null) throw new ArgumentNullException(nameof(userId));
+
             return _connectionToUsers
                 .Where(x => userId.Equals(x.Value.Id, StringComparison.OrdinalIgnoreCase))
                 .Select(x => x.Key)
