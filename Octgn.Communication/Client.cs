@@ -1,7 +1,6 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,27 +15,65 @@ namespace Octgn.Communication
         public User User { get; set; }
         public IConnection Connection { get; private set; }
 
-        public bool IsConnected { get; private set; }
+        public bool IsConnected => Status == ConnectionStatus.Connected;
+
+        public ConnectionStatus Status {
+            get => _status;
+            private set {
+
+                // Validate transition
+                switch (_status) {
+                    case ConnectionStatus.Disconnected:
+                        if(value == ConnectionStatus.Disconnected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if(value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        break;
+                    case ConnectionStatus.Connecting:
+                        break;
+                    case ConnectionStatus.Connected:
+                        if(value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if(value == ConnectionStatus.Connecting) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        break;
+                    default:
+                        throw new NotImplementedException(_status.ToString());
+                }
+
+                _status = value;
+
+                switch (_status) {
+                    case ConnectionStatus.Disconnected:
+                        try {
+                            Disconnected?.Invoke(this, new DisconnectedEventArgs { Client = this });
+                        } catch (Exception ex) {
+                            Signal.Exception(ex, nameof(Status));
+                        }
+                        break;
+                    case ConnectionStatus.Connecting:
+                        try {
+                            Connecting?.Invoke(this, new ConnectingEventArgs { Client = this });
+                        } catch (Exception ex) {
+                            Signal.Exception(ex, nameof(Status));
+                        }
+                        break;
+                    case ConnectionStatus.Connected:
+                        try {
+                            Connected?.Invoke(this, new ConnectedEventArgs { Client = this });
+                        } catch (Exception ex) {
+                            Signal.Exception(ex, nameof(Status));
+                        }
+                        break;
+                    default:
+                        throw new NotImplementedException(_status.ToString());
+                }
+            }
+        }
+
+        private ConnectionStatus _status;
 
         public event EventHandler<ConnectedEventArgs> Connected;
-        protected void FireConnectedEvent()
-        {
-            try {
-                Connected?.Invoke(this, new ConnectedEventArgs { Client = this });
-            } catch (Exception ex) {
-                Signal.Exception(ex, nameof(FireConnectedEvent));
-            }
-        }
 
         public event EventHandler<DisconnectedEventArgs> Disconnected;
-        protected void FireDisconnectedEvent()
-        {
-            try {
-                Disconnected?.Invoke(this, new DisconnectedEventArgs { Client = this });
-            } catch (Exception ex) {
-                Signal.Exception(ex, nameof(FireDisconnectedEvent));
-            }
-        }
+
+        public event EventHandler<ConnectingEventArgs> Connecting;
 
         public ISerializer Serializer { get; }
 
@@ -60,6 +97,8 @@ namespace Octgn.Communication
             Log.Info($"{this}: Connecting...");
 
             try {
+                Status = ConnectionStatus.Connecting;
+
                 Connection = CreateConnection();
                 Connection.Serializer = Serializer;
 
@@ -87,11 +126,11 @@ namespace Octgn.Communication
                 // Should do this before an operation that might block
                 cancellationToken.ThrowIfCancellationRequested();
 
-                IsConnected = true;
                 this.User = result.User;
 
                 Log.Info($"{this}: Firing connected events...");
-                FireConnectedEvent();
+                Status = ConnectionStatus.Connected;
+
                 Log.Info($"{this}: Connected");
             } catch {
                 if (Connection != null) {
@@ -99,6 +138,7 @@ namespace Octgn.Communication
                     Connection.RequestReceived -= Connection_RequestReceived;
                     Connection = null;
                 }
+                Status = ConnectionStatus.Disconnected;
                 throw;
             }
         }
@@ -106,13 +146,12 @@ namespace Octgn.Communication
         private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             try
             {
-                IsConnected = false;
                 args.Connection.ConnectionClosed -= Connection_ConnectionClosed;
                 args.Connection.RequestReceived -= Connection_RequestReceived;
 
                 Log.Warn($"{this}: Disconnected", args.Exception);
 
-                FireDisconnectedEvent();
+                Status = ConnectionStatus.Disconnected;
                 await ReconnectAsync();
             } catch (Exception ex) {
                 Signal.Exception(ex, nameof(Connection_ConnectionClosed));
@@ -150,8 +189,9 @@ namespace Octgn.Communication
                     return;
                 }
             } finally {
-                if(!IsConnected)
+                if (!IsConnected) {
                     Log.Warn($"{this}: {nameof(ReconnectAsync)}: Failed to reconnect after {currentTry} out of {maxRetryCount} tries");
+                }
             }
         }
 
@@ -228,4 +268,11 @@ namespace Octgn.Communication
     {
         public Client Client { get; set; }
     }
+
+    public class ConnectingEventArgs : EventArgs
+    {
+        public Client Client { get; set; }
+    }
+
+    public enum ConnectionStatus { Disconnected, Connecting, Connected }
 }
