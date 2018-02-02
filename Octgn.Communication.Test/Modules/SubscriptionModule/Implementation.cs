@@ -504,7 +504,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
             return Task.CompletedTask;
         }
 
-        public Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
+        public Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
             return Task.CompletedTask;
         }
     }

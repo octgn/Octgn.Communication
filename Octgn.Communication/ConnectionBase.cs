@@ -135,6 +135,9 @@ namespace Octgn.Communication
                         args.IsHandled = args.Response != null;
                     }
 
+                    // No response required.
+                    if (!args.IsHandled && !requestPacket.RequiresAck) break;
+
                     var unhandledRequestResponse = new ResponsePacket(requestPacket, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
 
                     var response = args.Response
@@ -167,8 +170,10 @@ namespace Octgn.Communication
             StampPacketBeforeSend(packet);
             var response = await SendPacket(packet, cancellationToken);
 
+            if (response == null && !packet.RequiresAck) return null;
+
             if (!(response is ResponsePacket responsePacket))
-                throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response.GetType().Name}");
+                throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response?.GetType()?.Name ?? "null"} response");
 
             responsePacket.Verify();
             return responsePacket;

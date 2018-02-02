@@ -11,6 +11,19 @@ namespace Octgn.Communication.Test
         public const string OfflineStatus = nameof(OfflineStatus);
         private UserConnectionMap OnlineUsers { get; } = new UserConnectionMap();
 
+        public TestUserProvider() {
+            OnlineUsers.UserConnectionChanged += OnlineUsers_UserConnectionChanged;
+        }
+
+        private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
+            try {
+                await _server.UpdateUserStatus(e.User, e.IsConnected ? TestUserProvider.OnlineStatus : TestUserProvider.OfflineStatus);
+            } catch (ObjectDisposedException) {
+            } catch (Exception ex) {
+                Signal.Exception(ex);
+            }
+        }
+
         public IEnumerable<IConnection> GetConnections(string userId) {
             return OnlineUsers.GetConnections(userId);
         }

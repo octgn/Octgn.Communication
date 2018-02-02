@@ -73,6 +73,11 @@ namespace Octgn.Communication
             }
         }
 
+        public T GetModule<T>() where T : IServerModule {
+            lock(_serverModules)
+                return _serverModules.OfType<T>().FirstOrDefault();
+        }
+
         public async Task UpdateUserStatus(User user, string status) {
             VerifyNotDisposed();
 
@@ -88,7 +93,7 @@ namespace Octgn.Communication
             foreach (var module in serverModules) {
                 try {
                     VerifyNotDisposed();
-                    await module.UserStatucChanged(this, handlerArgs);
+                    await module.UserStatusChanged(this, handlerArgs);
                     if (handlerArgs.IsHandled) {
                         break;
                     }
@@ -157,7 +162,7 @@ namespace Octgn.Communication
 
             Log.Info($"Sent {request} to {sendCount} clients");
 
-            if(receiverResponse == null)
+            if(receiverResponse == null && request.RequiresAck)
                 throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {request} routed to {destination}, but they didn't handle the request.", false);
 
             return receiverResponse;

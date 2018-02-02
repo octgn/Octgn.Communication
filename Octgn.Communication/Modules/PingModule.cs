@@ -19,7 +19,7 @@ namespace Octgn.Communication.Modules
             return Task.FromResult(new ResponsePacket(args.Request, DateTime.UtcNow));
         }
 
-        public Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
+        public Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
             return Task.FromResult<object>(null);
         }
 

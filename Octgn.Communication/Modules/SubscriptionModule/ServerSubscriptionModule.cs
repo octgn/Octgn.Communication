@@ -118,7 +118,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             return _requestHandler.HandleRequest(sender, args);
         }
 
-        public async Task UserStatucChanged(object sender, UserStatusChangedEventArgs e) {
+        public async Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
             if (e.User == null) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User));
             if (string.IsNullOrWhiteSpace(e.User.Id)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User) + "." + nameof(e.User.Id));
             if (string.IsNullOrWhiteSpace(e.Status)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.Status));

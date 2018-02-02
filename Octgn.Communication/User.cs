@@ -50,9 +50,12 @@ namespace Octgn.Communication
             return ret;
         }
 
-        [DebuggerStepThrough]
         public static bool TryParse(string userString, out User user) {
             try {
+                if (string.IsNullOrWhiteSpace(userString)) {
+                    user = null;
+                    return false;
+                }
                 user = Parse(userString);
                 return true;
             } catch {
