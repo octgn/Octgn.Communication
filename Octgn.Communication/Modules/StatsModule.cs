@@ -7,6 +7,8 @@ namespace Octgn.Communication.Modules
 {
     public class StatsModule : IServerModule, IClientModule
     {
+        private static readonly ILogger Log = LoggerFactory.Create(nameof(StatsModule));
+
         public const string OnlineUserPacketKey = "OnlineUserCount";
 
         public Stats Stats {
@@ -57,7 +59,13 @@ namespace Octgn.Communication.Modules
                 OnlineUserCount = onlineUsers
             };
 
-            await _server.Request(new Stats(_stats));
+            try {
+                await _server.Request(new Stats(_stats));
+            } catch (ErrorResponseException ex) when (ex.Code == ErrorResponseCodes.UserOffline) {
+                // Don't care.
+                // This happens when there are no users online
+                Log.Warn(nameof(UserStatusChanged), ex);
+            }
         }
     }
 
