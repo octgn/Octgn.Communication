@@ -44,8 +44,8 @@ namespace Octgn.Communication.Test
 
                 await Task.WhenAll(requests);
 
-                Assert.AreEqual(0, conA.StillWaitingForAck);
-                Assert.AreEqual(0, conB.StillWaitingForAck);
+                Assert.AreEqual(0, conA.StillAwaitingAck);
+                Assert.AreEqual(0, conB.StillAwaitingAck);
 
                 Assert.AreEqual(1000, conACounter);
                 Assert.AreEqual(1000, conBCounter);

@@ -161,6 +161,7 @@ namespace Octgn.Communication
             }
         }
 
+        internal int StillAwaitingAck => _awaitingAck.Count;
         private readonly System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<Packet>> _awaitingAck = new System.Collections.Concurrent.ConcurrentDictionary<ulong, TaskCompletionSource<Packet>>();
 
         #region RPC
