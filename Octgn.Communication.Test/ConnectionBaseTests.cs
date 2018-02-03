@@ -35,21 +35,20 @@ namespace Octgn.Communication.Test
                 await conA.Connect();
                 await conB.Connect();
 
-                for (var i = 0; i < 100; i++) {
-                    await conA.Request(new RequestPacket("test"));
-                    await conA.Request(new RequestPacket("test"));
-                    await conA.Request(new RequestPacket("test"));
-                    await conA.Request(new RequestPacket("test"));
-                    await conA.Request(new RequestPacket("test"));
-                    await conB.Request(new RequestPacket("test"));
-                    await conB.Request(new RequestPacket("test"));
-                    await conB.Request(new RequestPacket("test"));
-                    await conB.Request(new RequestPacket("test"));
-                    await conB.Request(new RequestPacket("test"));
+                var requests = new List<Task<ResponsePacket>>();
+
+                for (var i = 0; i < 1000; i++) {
+                    requests.Add(conA.Request(new RequestPacket("conA")));
+                    requests.Add(conB.Request(new RequestPacket("conB")));
                 }
 
-                Assert.AreEqual(500, conACounter);
-                Assert.AreEqual(500, conBCounter);
+                await Task.WhenAll(requests);
+
+                Assert.AreEqual(0, conA.StillWaitingForAck);
+                Assert.AreEqual(0, conB.StillWaitingForAck);
+
+                Assert.AreEqual(1000, conACounter);
+                Assert.AreEqual(1000, conBCounter);
             }
         }
     }
@@ -84,24 +83,25 @@ namespace Octgn.Communication.Test
 
         public override void Dispose() {
             _isConnected = false;
-            _backgroundTasks.Dispose();
+            _processPacketsTask.Wait();
             base.Dispose();
         }
 
-        protected ConcurrentQueue<Packet> PacketsIn { get; set; } = new ConcurrentQueue<Packet>();
-        private readonly ConcurrentQueue<TaskCompletionSource<Packet>> _signalPacketReceived = new ConcurrentQueue<TaskCompletionSource<Packet>>(new[] {
-            new TaskCompletionSource<Packet>(),
-            new TaskCompletionSource<Packet>(),
-            new TaskCompletionSource<Packet>(),
-            new TaskCompletionSource<Packet>(),
-            new TaskCompletionSource<Packet>(),
+        private readonly List<TaskCompletionSource<Packet>> _signalPacketReceived = new List<TaskCompletionSource<Packet>>(new[] {
+            new TaskCompletionSource<Packet>()
         });
 
-        private readonly BackgroundTasks _backgroundTasks = new BackgroundTasks();
+        private Task _processPacketsTask = Task.CompletedTask;
 
         protected override async Task ReadPacketsAsync() {
             while (_isConnected) {
-                var tasks = new List<Task>(_signalPacketReceived.Select(x => (Task)x.Task)) {
+                TaskCompletionSource<Packet> firstTcs = null;
+                lock (_signalPacketReceived) {
+                    firstTcs = _signalPacketReceived[0];
+                }
+
+                var tasks = new List<Task>() {
+                    firstTcs.Task,
                     ClosedCancellationTask
                 };
 
@@ -109,21 +109,35 @@ namespace Octgn.Communication.Test
 
                 if (task == ClosedCancellationTask) break;
 
+                lock (_signalPacketReceived) {
+                    // Remove the first one that just completed
+                    _signalPacketReceived.RemoveAt(0);
+                    _signalPacketReceived.Add(new TaskCompletionSource<Packet>());
+                }
+
                 var packetTask = task as Task<Packet>;
 
-                _backgroundTasks.Schedule(ProcessReceivedPacket(packetTask.Result, this.ClosedCancellationToken));
+                _processPacketsTask = _processPacketsTask.ContinueWith(async (prevTask) => {
+                    await ProcessReceivedPacket(packetTask.Result, this.ClosedCancellationToken);
+                }).Unwrap();
+            }
+        }
+
+        protected void AddPacket(Packet packet) {
+            lock (_signalPacketReceived) {
+                foreach(var signal in _signalPacketReceived) {
+                    if (signal.TrySetResult(packet)) return;
+                }
+
+                var tcs = new TaskCompletionSource<Packet>();
+                tcs.SetResult(packet);
+                _signalPacketReceived.Add(tcs);
             }
         }
 
         protected override Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken) {
             _attachedConnection.AddPacket(packet);
             return Task.CompletedTask;
-        }
-
-        protected void AddPacket(Packet packet) {
-            _signalPacketReceived.TryDequeue(out TaskCompletionSource<Packet> tcs);
-            _signalPacketReceived.Enqueue(new TaskCompletionSource<Packet>());
-            tcs.SetResult(packet);
         }
 
         public override IConnection Clone() {
