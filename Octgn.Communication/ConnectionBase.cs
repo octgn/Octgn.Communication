@@ -285,6 +285,8 @@ namespace Octgn.Communication
                 timedOut = _readPacketsTask?.Wait(ConnectionBase.WaitForResponseTimeout) == false;
             } catch { /* this exception is caught above */ }
 
+            Serializer = null;
+
             if (timedOut)
                 throw new InvalidOperationException($"{this}: Timed out waiting for the read loop to end.");
 

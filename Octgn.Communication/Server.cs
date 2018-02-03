@@ -47,6 +47,7 @@ namespace Octgn.Communication
             _authenticationHandler = authenticationHandler ?? throw new ArgumentNullException(nameof(authenticationHandler));
 
             Listener.ConnectionCreated += Listener_ConnectionCreated;
+            Connections.RequestReceived += Connections_RequestReceived;
 
             // Must be at the end
             ConnectionProvider.Initialize(this);
@@ -58,7 +59,6 @@ namespace Octgn.Communication
                 Log.Info($"Connection Created {args.Connection.ConnectionId}");
                 Connections.Add(args.Connection);
                 args.Connection.Serializer = Serializer;
-                args.Connection.RequestReceived += Connection_RequestReceived;
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
@@ -168,8 +168,7 @@ namespace Octgn.Communication
             return receiverResponse;
         }
 
-        private async Task Connection_RequestReceived(object sender, RequestReceivedEventArgs args)
-        {
+        private async Task Connections_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }

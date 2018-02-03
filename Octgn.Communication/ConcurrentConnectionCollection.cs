@@ -70,6 +70,7 @@ namespace Octgn.Communication
         private void Item_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
             lock (_collection) {
                 args.Connection.ConnectionClosed -= Item_ConnectionClosed;
+                args.Connection.RequestReceived -= Item_RequestReceived;
                 _collection.Remove(args.Connection);
 
                 if (_collection.Count <= 0) {
