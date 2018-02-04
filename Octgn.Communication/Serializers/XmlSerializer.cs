@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using SystemXmlSerializer = System.Xml.Serialization.XmlSerializer;
@@ -7,6 +8,11 @@ namespace Octgn.Communication.Serializers
 {
     public class XmlSerializer : ISerializer
     {
+        private readonly ConcurrentDictionary<Type, SystemXmlSerializer> _serializers = new ConcurrentDictionary<Type, SystemXmlSerializer>();
+        private SystemXmlSerializer GetSerializer(Type dataType) {
+            return _serializers.GetOrAdd(dataType, (t) => new SystemXmlSerializer(t, IncludedTypes));
+        }
+
         public XmlSerializer() {
             IncludedTypes = new Type[] {
                 typeof(User)
@@ -25,7 +31,7 @@ namespace Octgn.Communication.Serializers
         }
 
         public object Deserialize(Type dataType, byte[] data) {
-            var serializer = new SystemXmlSerializer(dataType, IncludedTypes);
+            var serializer = GetSerializer(dataType);
 
             using (var ms = new MemoryStream(data)) {
                 return serializer.Deserialize(ms);
@@ -33,7 +39,7 @@ namespace Octgn.Communication.Serializers
         }
 
         public byte[] Serialize(object o) {
-            var serializer = new SystemXmlSerializer(o.GetType(), IncludedTypes);
+            var serializer = GetSerializer(o.GetType());
 
             using (var ms = new MemoryStream()) {
                 serializer.Serialize(ms, o);
