@@ -119,7 +119,7 @@ namespace Octgn.Communication
             }
         }
 
-        private readonly BackgroundTasks _backgroundTasks = new BackgroundTasks();
+        private Task _processPacketsTask = Task.CompletedTask;
 
         protected override async Task ReadPacketsAsync() {
             Log.Info(this + ": " + nameof(ReadPacketsAsync));
@@ -143,7 +143,10 @@ namespace Octgn.Communication
 
                 foreach (var packet in _packetBuilder.AddData(Serializer, buffer, count)) {
                     // Don't await this, it causes deadlocks.
-                    var task = Task.Run(async () => {
+                    _processPacketsTask = _processPacketsTask.ContinueWith(async (prevTask) => {
+                        // Running this as ContinuesWith will fire these synchronusly
+                        // We assign back to _processPacketsTask so that we can track all of these tasks
+                        // This effectively combines all of these tasks into one
                         try {
                             if (!_isConnected) {
                                 Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
@@ -154,14 +157,13 @@ namespace Octgn.Communication
                             Signal.Exception(ex);
                             IsClosed = true;
                         }
-                    });
-                    _backgroundTasks.Schedule(task);
+                    }).Unwrap();
                 }
             }
         }
 
         public override void Dispose() {
-            _backgroundTasks.Dispose();
+            _processPacketsTask.Wait();
             base.Dispose();
         }
 
