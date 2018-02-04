@@ -201,8 +201,12 @@ namespace Octgn.Communication
 
             // Wait for the ack
             var tcs = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            // Just incase this value changes, we want to be able to look it up in our dictionary for sure in the finally block
+            var packetId = packet.Id.Value;
+
             try {
-                _awaitingAck.AddOrUpdate(packet.Id.Value, tcs, (a, b) => tcs);
+                _awaitingAck.AddOrUpdate(packetId, tcs, (a, b) => tcs);
 
                 Log.TracePacketSent(this, packet);
 
@@ -210,12 +214,12 @@ namespace Octgn.Communication
 
                 using (var sendPacketCancellationTokenSource = new CancellationTokenTaskSource<object>(cancellationToken)) {
 #if (DEBUG)
-                    Log.Info($"{this}: Waiting for ack for #{packet.Id}");
+                    Log.Info($"{this}: Waiting for ack for #{packetId}");
 #endif
                     var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(WaitForResponseTimeout), sendPacketCancellationTokenSource.Task);
                     if (result == tcs.Task) {
 #if (DEBUG)
-                        Log.Info($"Ack for #{packet.Id} received");
+                        Log.Info($"Ack for #{packetId} received");
 #endif
                         return tcs.Task.Result;
                     }
@@ -227,12 +231,12 @@ namespace Octgn.Communication
                     throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
                 }
             } finally {
-                Log.Info($"{this}: Finished waiting for Ack for #{packet.Id}");
+                Log.Info($"{this}: Finished waiting for Ack for #{packetId}");
 
                 // Just in case it wasn't set.
                 tcs.TrySetCanceled();
 
-                _awaitingAck.TryRemove(packet.Id.Value, out tcs);
+                _awaitingAck.TryRemove(packetId, out tcs);
             }
         }
 
