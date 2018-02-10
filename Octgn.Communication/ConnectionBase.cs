@@ -18,7 +18,7 @@ namespace Octgn.Communication
         public static TimeSpan WaitToConnectTimeout { get; set; } = TimeSpan.FromSeconds(15);
 
         #region Identification
-        public string ConnectionId { get; } = UID.Generate(++_nextSeed);
+        public string ConnectionId { get; } = UID.Generate(Interlocked.Increment(ref _nextSeed));
 
         private static int _nextSeed = 0;
 
