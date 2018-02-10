@@ -75,6 +75,7 @@
     <Compile Include="TestBase.cs" />
     <Compile Include="TestClient.cs" />
     <Compile Include="TestUserProvider.cs" />
+    <Compile Include="Utility\UIDTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Octgn.Communication.WindowsDesktop\Octgn.Communication.WindowsDesktop.csproj">
