@@ -29,9 +29,11 @@ namespace Octgn.Communication.Packets
             : this(request.Name, request.Properties) {
             this.Origin = request.Origin;
             this.Destination = request.Destination;
+            this._packetTypeId = request.PacketTypeId;
         }
 
-        public override byte PacketTypeId => 3;
+        public override byte PacketTypeId => _packetTypeId;
+        private byte _packetTypeId = 3;
 
         public override bool RequiresAck => true;
 

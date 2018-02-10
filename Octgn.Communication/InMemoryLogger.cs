@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 namespace Octgn.Communication
@@ -49,6 +50,7 @@ namespace Octgn.Communication
         }
 
         private void Write(string message) {
+            Trace.WriteLine(message);
             LogMessages.Enqueue(message);
             if (MaxBufferSize > 0) {
                 if (LogMessages.Count > MaxBufferSize) {

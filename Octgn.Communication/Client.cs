@@ -170,7 +170,7 @@ namespace Octgn.Communication
 
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
-                    if (_disposed) {
+                    if (disposedValue) {
                         Log.Warn($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
                         break;
                     }
@@ -204,20 +204,6 @@ namespace Octgn.Communication
             return (T)_clientModules[typeof(T)];
         }
 
-        private bool _disposed;
-        public void Dispose() {
-            _disposed = true;
-            Log.Info($"{this}: Disposed");
-            foreach(var moduleKVP in _clientModules) {
-                var module = moduleKVP.Value;
-
-                (module as IDisposable)?.Dispose();
-            }
-            _clientModules.Clear();
-            if (Connection != null) {
-                Connection.IsClosed = true;
-            }
-        }
 
         public Task<ResponsePacket> Request(RequestPacket request, CancellationToken cancellationToken = default(CancellationToken)) {
             if (!IsConnected && !_authenticating) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
@@ -238,10 +224,14 @@ namespace Octgn.Communication
                 args.Context.Client = this;
                 args.Context.User = this.User;
 
-                foreach (var handler in _clientModules.Values) {
-                    await handler.HandleRequest(this, args);
-                    if (args.IsHandled)
-                        break;
+                await OnRequestReceived(this, args);
+
+                if (!args.IsHandled) {
+                    foreach (var handler in _clientModules.Values) {
+                        await handler.HandleRequest(this, args);
+                        if (args.IsHandled)
+                            break;
+                    }
                 }
 
                 // Copy locally in case it become null
@@ -254,9 +244,40 @@ namespace Octgn.Communication
             }
         }
 
+        protected virtual Task OnRequestReceived(object sender, RequestReceivedEventArgs args) {
+            return Task.CompletedTask;
+        }
+
         public override string ToString() {
             return $"{nameof(Client)} {this.User}: {Connection}";
         }
+
+        #region IDisposable Support
+        protected bool IsDisposed => disposedValue;
+        private bool disposedValue = false; // To detect redundant calls
+
+        protected virtual void Dispose(bool disposing) {
+            if (!disposedValue) {
+                if (disposing) {
+                    Log.Info($"{this}: Disposed");
+                    foreach (var moduleKVP in _clientModules) {
+                        var module = moduleKVP.Value;
+
+                        (module as IDisposable)?.Dispose();
+                    }
+                    _clientModules.Clear();
+                    if (Connection != null) {
+                        Connection.IsClosed = true;
+                    }
+                }
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose() {
+            Dispose(true);
+        }
+        #endregion
     }
 
     public class ConnectedEventArgs : EventArgs

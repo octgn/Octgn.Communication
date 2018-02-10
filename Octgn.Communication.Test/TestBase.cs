@@ -29,8 +29,8 @@ namespace Octgn.Communication.Test
                 _currentTest = new TaskCompletionSource<object>();
             }
 
-            ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
             LoggerFactory.DefaultMethod = (c) => new InMemoryLogger(c);
+            ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
 
             while (InMemoryLogger.LogMessages.Count > 0) {
                 InMemoryLogger.LogMessages.TryDequeue(out var result);

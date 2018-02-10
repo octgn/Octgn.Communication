@@ -58,8 +58,8 @@ namespace Octgn.Communication
         {
             try {
                 Log.Info($"Connection Created {args.Connection.ConnectionId}");
-                Connections.Add(args.Connection);
                 args.Connection.Serializer = Serializer;
+                Connections.Add(args.Connection);
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
@@ -146,11 +146,13 @@ namespace Octgn.Communication
                 ? ConnectionProvider.GetConnections(destination)
                 : ConnectionProvider.GetConnections()).ToArray();
 
-            Log.Info($"Sending {request} to {connections.Length} connections");
+            Log.Info($"Sending {request} to {connections.Length} connections: {string.Join(",", connections.Take(10))}");
 
             foreach (var connection in connections) {
                 try {
-                    receiverResponse = await connection.Request(request);
+                    var newRequest = new RequestPacket(request);
+                    receiverResponse = await connection.Request(newRequest);
+
                     sendCount++;
                 } catch (Exception ex) when (!(ex is ErrorResponseException)) {
                     Log.Warn(ex);
@@ -170,10 +172,15 @@ namespace Octgn.Communication
             return receiverResponse;
         }
 
+        public int RequestCount { get => _requestCount; }
+        private int _requestCount;
+
         private async Task Connections_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
+
+            Interlocked.Increment(ref _requestCount);
 
             args.Context.Server = this;
 
@@ -196,6 +203,7 @@ namespace Octgn.Communication
 
                 if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
                     args.Response = await Request(args.Request, args.Request.Destination);
+                    args.Response.RequestPacketId = (ulong)args.Request.Id;
                     args.IsHandled = true;
                 } else {
                     foreach (var module in _serverModules) {

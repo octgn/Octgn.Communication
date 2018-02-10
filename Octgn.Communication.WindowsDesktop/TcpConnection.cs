@@ -1,6 +1,7 @@
 ﻿using Octgn.Communication.TransportSDK;
 using Octgn.Communication.Utility;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -31,16 +32,14 @@ namespace Octgn.Communication
         public override bool IsConnected => _isConnected;
         private bool _isConnected;
 
-        public TcpConnection(TcpClient client)
-        {
+        public TcpConnection(TcpClient client) {
             _client = client;
             _toString = $"ListenerConnection:{_client.Client.LocalEndPoint}:{ConnectionId}";
             _packetBuilder = new PacketBuilder();
             _isConnected = true;
         }
 
-        public TcpConnection(string remoteHost)
-        {
+        public TcpConnection(string remoteHost) {
             _client = new TcpClient();
             RemoteHost = remoteHost;
             _toString = $"Connection:{RemoteHost}:{ConnectionId}";
@@ -48,8 +47,7 @@ namespace Octgn.Communication
             _isConnected = false;
         }
 
-        protected TcpConnection(TcpConnection connection)
-        {
+        protected TcpConnection(TcpConnection connection) {
             if (connection.RemoteHost == null) throw new ArgumentException("connection can't be created from this connection.", nameof(connection));
 
             _client = new TcpClient();
@@ -64,8 +62,7 @@ namespace Octgn.Communication
 
         private bool _calledConnect;
         private readonly object L_CALLEDCONNECT = new object();
-        public override async Task Connect(CancellationToken cancellationToken = default(CancellationToken))
-        {
+        public override async Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             if (IsListenerConnection) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)}");
             if (IsClosed) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)} on a closed connection");
 
@@ -125,14 +122,14 @@ namespace Octgn.Communication
             Log.Info(this + ": " + nameof(ReadPacketsAsync));
 
             var client = _client;
-            var buffer = new byte[256];
+            var buffer = new byte[128];
             while (_isConnected) {
                 var count = 0;
                 try {
                     var stream = client?.GetStream();
                     if (stream == null) return;
 
-                    count = await stream.ReadAsync(buffer, 0, 256);
+                    count = await stream.ReadAsync(buffer, 0, 128);
                 } catch (IOException ex) {
                     throw new DisconnectedException(this.ToString(), ex);
                 } catch (ObjectDisposedException) {
@@ -141,10 +138,12 @@ namespace Octgn.Communication
 
                 if (count == 0) return;
 
-                foreach (var packet in _packetBuilder.AddData(Serializer, buffer, count)) {
+                foreach (var createdPacket in _packetBuilder.AddData(Serializer, buffer, count)) {
                     // Don't await this, it causes deadlocks.
-                    _processPacketsTask = _processPacketsTask.ContinueWith(async (prevTask) => {
-                        // Running this as ContinuesWith will fire these synchronusly
+                    var packet = createdPacket;
+
+                    _processingTasks.Add(Task.Run(async () => {
+                        // Running this as ContinuesWith will fire these synchronously
                         // We assign back to _processPacketsTask so that we can track all of these tasks
                         // This effectively combines all of these tasks into one
                         try {
@@ -156,19 +155,28 @@ namespace Octgn.Communication
                         } catch (Exception ex) {
                             Signal.Exception(ex);
                             IsClosed = true;
+                        } finally {
+                            //_processingTasks.Remove(processTask);
                         }
-                    }).Unwrap();
+                    }, ClosedCancellationToken).ContinueWith(task => {
+                        // Required to remove this task from our hashset
+                        _processingTasks.Remove(task);
+                    }));
                 }
             }
         }
 
+        /// <summary>
+        /// Used to make sure that all of our running tasks end before dispose ends.
+        /// </summary>
+        private readonly HashSet<Task> _processingTasks = new HashSet<Task>();
+
         public override void Dispose() {
-            _processPacketsTask.Wait();
+            Task.WhenAll(_processingTasks);
             base.Dispose();
         }
 
-        protected override async Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken)
-        {
+        protected override async Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken) {
             try {
                 packet.Sent = DateTimeOffset.Now;
                 var packetData = Packet.Serialize(packet, Serializer);
@@ -190,8 +198,7 @@ namespace Octgn.Communication
             }
         }
 
-        protected override void Close(ConnectionClosedEventArgs args)
-        {
+        protected override void Close(ConnectionClosedEventArgs args) {
             Log.Info($"{this}: Close");
             if (_isConnected) {
                 _isConnected = false;
