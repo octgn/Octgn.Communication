@@ -146,7 +146,7 @@ namespace Octgn.Communication
                 ? ConnectionProvider.GetConnections(destination)
                 : ConnectionProvider.GetConnections()).ToArray();
 
-            Log.Info($"Sending {request} to {connections.Length} connections: {string.Join<IConnection>(",", connections)}");
+            Log.Info($"Sending {request} to {connections.Length} connections");
 
             foreach (var connection in connections) {
                 try {
