@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -141,20 +142,21 @@ namespace Octgn.Communication
 
             request.Destination = destination;
 
-            var connections = !string.IsNullOrWhiteSpace(destination)
+            var connections = (!string.IsNullOrWhiteSpace(destination)
                 ? ConnectionProvider.GetConnections(destination)
-                : ConnectionProvider.GetConnections();
+                : ConnectionProvider.GetConnections()).ToArray();
+
+            Log.Info($"Sending {request} to {connections.Length} connections: {string.Join<IConnection>(",", connections)}");
 
             foreach (var connection in connections) {
                 try {
-                    Log.Info($"Sending {request} to {connection}");
-
                     receiverResponse = await connection.Request(request);
                     sendCount++;
                 } catch (Exception ex) when (!(ex is ErrorResponseException)) {
                     Log.Warn(ex);
                 }
             }
+
             if (sendCount < 1) {
                 Log.Warn($"Unable to deliver packet to user {destination}, they are offline or the destination is invalid.");
                 throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver packet to user {destination}, they are offline of the destination is invalid.", false);
