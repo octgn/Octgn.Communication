@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 
 namespace Octgn.Communication
 {
@@ -20,6 +21,14 @@ namespace Octgn.Communication
             Code = ex.GetType().Name + "-" + ex.GetHashCode();
             Message = ex.Message;
             IsCritical = isCritical;
+        }
+
+        public override string ToString() {
+            var header = IsCritical
+                ? "CRITICAL"
+                : "Error";
+
+            return $"[{header}: {Code}: {Message}]";
         }
     }
 }
