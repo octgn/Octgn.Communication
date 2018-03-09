@@ -5,7 +5,7 @@ namespace Octgn.Communication.Modules
     public static class ExtensionMethods
     {
         public static StatsModule InitializeStatsModule(this Client client) {
-            var module = new StatsModule();
+            var module = new StatsModule(client);
             client.Attach(module);
             return module;
         }

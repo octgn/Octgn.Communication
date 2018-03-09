@@ -2,11 +2,10 @@
 using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System.Linq;
-using Octgn.Communication.Serializers;
 
 namespace Octgn.Communication.Modules.SubscriptionModule
 {
-    public class ServerSubscriptionModule : IServerModule
+    public class ServerSubscriptionModule : Module
     {
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(nameof(ServerSubscriptionModule));
@@ -20,14 +19,16 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
             _dataProvider.UserSubscriptionUpdated += _dataProvider_UserSubscriptionUpdated;
 
-            _requestHandler.Register(nameof(IClientCalls.GetUserSubscriptions), OnGetUserSubscriptions);
-            _requestHandler.Register(nameof(IClientCalls.UpdateUserSubscription), OnUpdateUserSubscription);
-            _requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
-            _requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
+            RequestHandler requestHandler;
 
-            if (_server.Serializer is XmlSerializer xmlSerializer) {
-                xmlSerializer.Include(typeof(UserSubscription));
-            }
+            Attach(requestHandler = new RequestHandler());
+
+            requestHandler.Register(nameof(IClientCalls.GetUserSubscriptions), OnGetUserSubscriptions);
+            requestHandler.Register(nameof(IClientCalls.UpdateUserSubscription), OnUpdateUserSubscription);
+            requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
+            requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
+
+            _server.ConnectionProvider.ConnectionStateChanged += ConnectionProvider_ConnectionStateChanged;
         }
 
         private readonly Server _server;
@@ -37,12 +38,15 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                 var subscription = args.Subscription;
                 var userId = args.Subscription.UserId;
 
-                var userConnection = _server.ConnectionProvider.GetConnections(userId).FirstOrDefault();
+                var userConnection = _server.ConnectionProvider
+                    .GetConnections(userId)
+                    .Where(con => con.State == ConnectionState.Connected)
+                    .FirstOrDefault();
 
                 User user = null;
 
                 if (userConnection != null)
-                    user = _server.ConnectionProvider.GetUser(userConnection);
+                    user = userConnection.User;
                 else user = new User(userId, null);
 
                 var subUpdatePacket = new RequestPacket(nameof(IServerCalls.UserSubscriptionUpdated)) {
@@ -50,7 +54,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                 };
                 UserSubscription.AddToPacket(subUpdatePacket, subscription);
                 if (subscription.UpdateType == UpdateType.Add || subscription.UpdateType == UpdateType.Update) {
-                    subUpdatePacket["userStatus"] = _server.ConnectionProvider.GetUserStatus(userId);
+                    subUpdatePacket["userStatus"] = _dataProvider.GetUserStatus(userId);
                 }
 
                 try {
@@ -63,76 +67,92 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             }
         }
 
-        private Task OnGetUserSubscriptions(object sender, RequestReceivedEventArgs args) {
-            var subs = _dataProvider.GetUserSubscriptions(args.Context.User.Id).ToArray();
-            return Task.FromResult(new ResponsePacket(args.Request, subs));
+        private Task<ProcessResult> OnGetUserSubscriptions(RequestPacket request) {
+            var subs = _dataProvider.GetUserSubscriptions(request.Context.User.Id).ToArray();
+            return Task.FromResult(new ProcessResult(subs));
         }
 
-        private Task OnUpdateUserSubscription(object sender, RequestReceivedEventArgs args) {
-            var sub = UserSubscription.GetFromPacket(args.Request);
+        private Task<ProcessResult> OnUpdateUserSubscription(RequestPacket request) {
+            var sub = UserSubscription.GetFromPacket(request);
 
             // No other values are valid, and could potentially be malicious.
-            sub.SubscriberUserId = args.Context.User.Id;
+            sub.SubscriberUserId = request.Context.User.Id;
 
             _dataProvider.UpdateUserSubscription(sub);
 
-            return Task.FromResult(new ResponsePacket(args.Request, sub));
+            return Task.FromResult(new ProcessResult(sub));
         }
 
-        private Task OnRemoveUserSubscription(object sender, RequestReceivedEventArgs args) {
-            var subid = UserSubscription.GetIdFromPacket(args.Request);
+        private Task<ProcessResult> OnRemoveUserSubscription(RequestPacket request) {
+            var subid = UserSubscription.GetIdFromPacket(request);
 
             if (string.IsNullOrWhiteSpace(subid)) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
-                return Task.FromResult(new ResponsePacket(args.Request, errorData));
+                return Task.FromResult(new ProcessResult(errorData));
             }
 
             var sub = _dataProvider.GetUserSubscription(subid);
 
-            if (sub?.SubscriberUserId != args.Context.User.Id) {
+            if (sub?.SubscriberUserId != request.Context.User.Id) {
                 var errorData = new ErrorResponseData(ErrorResponseCodes.UserSubscriptionNotFound, $"The {nameof(UserSubscription)} with the id '{subid}' was not found.", false);
-                return Task.FromResult(new ResponsePacket(args.Request, errorData));
+                return Task.FromResult(new ProcessResult(errorData));
             }
 
             _dataProvider.RemoveUserSubscription(sub.Id);
 
-            return Task.FromResult(new ResponsePacket(args.Request));
+            return Task.FromResult(ProcessResult.Processed);
         }
 
-        private Task OnAddUserSubscription(object sender, RequestReceivedEventArgs args) {
-            var sub = UserSubscription.GetFromPacket(args.Request);
+        private Task<ProcessResult> OnAddUserSubscription(RequestPacket request) {
+            var sub = UserSubscription.GetFromPacket(request);
 
             // No other values are valid, and could potentially be malicious.
             sub.Id = null;
             sub.UpdateType = UpdateType.Add;
-            sub.SubscriberUserId = args.Context.User.Id;
+            sub.SubscriberUserId = request.Context.User.Id;
 
             _dataProvider.AddUserSubscription(sub);
 
-            return Task.FromResult(new ResponsePacket(args.Request, sub));
+            return Task.FromResult(new ProcessResult(sub));
         }
 
-        private readonly RequestHandler _requestHandler = new RequestHandler();
+        public const string UserOnlineStatus = "Online";
+        public const string UserOfflineStatus = "Offline";
 
-        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
-            return _requestHandler.HandleRequest(sender, args);
+        private async void ConnectionProvider_ConnectionStateChanged(object sender, ConnectionStateChangedEventArgs e) {
+            try {
+                switch (e.NewState) {
+                    case ConnectionState.Created:
+                    case ConnectionState.Connecting:
+                    case ConnectionState.Handshaking:
+                    case ConnectionState.Connected:
+                        await Broadcast_UserStatusChanged(e.Connection.User, UserOnlineStatus);
+                        break;
+                    case ConnectionState.Closed:
+                        await Broadcast_UserStatusChanged(e.Connection.User, UserOfflineStatus);
+                        break;
+                }
+            } catch (Exception ex) {
+                Signal.Exception(ex);
+            }
         }
 
-        public async Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
-            if (e.User == null) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User));
-            if (string.IsNullOrWhiteSpace(e.User.Id)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.User) + "." + nameof(e.User.Id));
-            if (string.IsNullOrWhiteSpace(e.Status)) throw new ArgumentNullException(nameof(e) + "." + nameof(e.Status));
-            var subscribedUsers = _dataProvider.GetUserSubscribers(e.User.Id);
+        private async Task Broadcast_UserStatusChanged(User user, string status) {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrWhiteSpace(user.Id)) throw new ArgumentNullException(nameof(user) + "." + nameof(user.Id));
+            if (string.IsNullOrWhiteSpace(status)) throw new ArgumentNullException(nameof(status));
 
-            foreach (var user in subscribedUsers) {
-                foreach (var connection in _server.ConnectionProvider.GetConnections(user)) {
+            var subscribedUsers = _dataProvider.GetUserSubscribers(user.Id);
+
+            foreach (var subscriber in subscribedUsers) {
+                foreach (var subscriberConnection in _server.ConnectionProvider.GetConnections(subscriber).Where(con => con.State == ConnectionState.Connected)) {
                     var packet = new RequestPacket(nameof(IServerCalls.UserStatusUpdated)) {
-                        ["user"] = e.User,
-                        ["userStatus"] = e.Status
+                        ["user"] = user,
+                        ["userStatus"] = status
                     };
 
                     try {
-                        await connection.Request(packet);
+                        await subscriberConnection.Request(packet);
                     } catch (NotConnectedException ex) {
                         Log.Warn(ex);
                     } catch (DisconnectedException ex) {

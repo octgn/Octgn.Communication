@@ -22,8 +22,8 @@
             Body = message;
         }
 
-        public override string ToString() {
-            return $"Message(From: {Origin}, To: {Destination}, Body: '{Body}')";
-        }
+        protected virtual string MessageString => $"{{From: {Origin}, To: {Destination}, Body: '{Body?.Truncate(20)}'}}";
+
+        protected override string PacketStringData => base.PacketStringData + " " + MessageString;
     }
 }

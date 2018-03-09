@@ -17,8 +17,8 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.IsEnabled = true;
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Initialize();
 
                 var expectedException = new NotImplementedException();
 
@@ -29,7 +29,7 @@ namespace Octgn.Communication.Test
 
                 try {
                     Signal.OnException += Signal_OnException;
-                    using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("a"))) {
+                    using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("a"))) {
                         client.Connected += (_, __) => throw expectedException;
                         await client.Connect();
                     }
@@ -44,10 +44,10 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.IsEnabled = true;
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Initialize();
 
-                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("a"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("a"))) {
                     await client.Connect();
 
                     try
@@ -67,10 +67,10 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.IsEnabled = true;
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Initialize();
 
-                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("userA"))) {
+                using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("userA"))) {
                     await client.Connect();
 
                     var tcs = new TaskCompletionSource<RequestPacket>();
@@ -78,7 +78,7 @@ namespace Octgn.Communication.Test
                     client.RequestReceived += (_, args) => {
                         args.Response = new ResponsePacket(args.Request);
                         tcs.SetResult(args.Request);
-                        return Task.CompletedTask;
+                        return Task.FromResult(args.Response);
                     };
 
                     var request = new RequestPacket("test");
@@ -93,32 +93,6 @@ namespace Octgn.Communication.Test
                     Assert.NotNull(tcs.Task.Result);
                 }
             }
-        }
-    }
-
-    public class TestAuthenticator : IAuthenticator
-    {
-        public string UserId { get; set; }
-
-        public TestAuthenticator(string userId) {
-            UserId = userId;
-        }
-
-        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection, CancellationToken cancellationToken = default(CancellationToken)) {
-            var authRequest = new AuthenticationRequestPacket("asdf") {
-                ["userid"] = UserId
-            };
-            var result = await client.Request(authRequest, cancellationToken);
-            return result.As<AuthenticationResult>();
-        }
-    }
-
-    public class TestAuthenticationHandler : IAuthenticationHandler
-    {
-        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
-            var userId = (string)packet["userid"];
-
-            return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));
         }
     }
 }

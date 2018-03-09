@@ -1,9 +1,7 @@
 ﻿using Octgn.Communication.TransportSDK;
-using Octgn.Communication.Utility;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -18,67 +16,75 @@ namespace Octgn.Communication
 #pragma warning restore IDE1006 // Naming Styles
 
         private readonly TcpClient _client;
-        private PacketBuilder _packetBuilder;
+        /// <summary>
+        /// You must close the NetworkStream when you are through sending and receiving data. Closing TcpClient does not release the NetworkStream. -- https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.tcpclient.getstream?f1url=https%3A%2F%2Fmsdn.microsoft.com%2Fquery%2Fdev15.query%3FappId%3DDev15IDEF1%26l%3DEN-US%26k%3Dk(System.Net.Sockets.TcpClient.GetStream);k(TargetFrameworkMoniker-.NETFramework,Version%3Dv4.7);k(DevLang-csharp)%26rd%3Dtrue&view=netframework-4.7.1
+        /// </summary>
+        private NetworkStream _clientStream;
+        private readonly PacketBuilder _packetBuilder;
+        private readonly ISerializer _serializer;
+
+        internal bool IsListenerConnection { get; }
 
         /// <summary>
-        /// Was this connection created from a IConnectionListener?
+        /// Creates a <see cref="TcpConnection"/> from and already open <see cref="TcpClient"/>
         /// </summary>
-        internal bool IsListenerConnection => RemoteHost == null;
+        /// <param name="client"></param>
+        /// <param name="serializer"></param>
+        /// <param name="handshaker"></param>
+        public TcpConnection(TcpClient client, ISerializer serializer, IHandshaker handshaker)
+            : base(client.Client.RemoteEndPoint.ToString(), handshaker) {
+            _client = client ?? throw new ArgumentNullException(nameof(client));
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+            _clientStream = _client.GetStream() ?? throw new ArgumentNullException(nameof(_client) + "." + nameof(_client.GetStream));
 
-        internal string RemoteHost { get; }
-
-        private readonly string _toString;
-
-        public override bool IsConnected => _isConnected;
-        private bool _isConnected;
-
-        public TcpConnection(TcpClient client) {
-            _client = client;
-            _toString = $"ListenerConnection:{_client.Client.LocalEndPoint}:{ConnectionId}";
             _packetBuilder = new PacketBuilder();
-            _isConnected = true;
+            IsListenerConnection = true;
+
+            TransitionState(ConnectionState.Connecting);
+            TransitionState(ConnectionState.Handshaking);
         }
 
-        public TcpConnection(string remoteHost) {
+        public TcpConnection(string remoteHost, ISerializer serializer, IHandshaker handshaker)
+            : base(remoteHost, handshaker) {
             _client = new TcpClient();
-            RemoteHost = remoteHost;
-            _toString = $"Connection:{RemoteHost}:{ConnectionId}";
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _packetBuilder = new PacketBuilder();
-            _isConnected = false;
         }
 
-        protected TcpConnection(TcpConnection connection) {
-            if (connection.RemoteHost == null) throw new ArgumentException("connection can't be created from this connection.", nameof(connection));
-
+        protected TcpConnection(TcpConnection connection)
+            : base (connection.RemoteAddress, connection.Handshaker) {
             _client = new TcpClient();
-            RemoteHost = connection.RemoteHost;
-            _toString = connection.ToString();
-            _isConnected = false;
-            try { } finally {
-                _packetBuilder = connection._packetBuilder;
-                connection._packetBuilder = null;
+            _serializer = connection._serializer ?? throw new ArgumentException("Serializer is null", nameof(connection));
+            _packetBuilder = new PacketBuilder(connection._packetBuilder);
+        }
+
+        protected override void OnConnectionStateChanged(object sender, ConnectionStateChangedEventArgs args) {
+            switch (args.NewState) {
+                case ConnectionState.Handshaking:
+                    ReadPackets().SignalOnException();
+                    break;
+                case ConnectionState.Closed:
+                    try {
+                        Log.Info($"{this}: Closing tcp client");
+                        _clientStream?.Close();
+                        _client.Close();
+                    } catch (Exception ex) {
+                        Log.Warn($"{this}: {nameof(OnConnectionStateChanged)}", ex);
+                    }
+                    break;
             }
+
+            base.OnConnectionStateChanged(sender, args);
         }
 
-        private bool _calledConnect;
-        private readonly object L_CALLEDCONNECT = new object();
-        public override async Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
+        protected override async Task ConnectImpl(CancellationToken cancellationToken = default(CancellationToken)) {
             if (IsListenerConnection) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)}");
-            if (IsClosed) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)} on a closed connection");
 
-            lock (L_CALLEDCONNECT) {
-                if (_calledConnect) throw new InvalidOperationException($"{this}: Cannot call {nameof(Connect)} more than once");
-                _calledConnect = true;
-            }
+            Log.Info($"{this}: Starting to {nameof(Connect)} to {RemoteAddress}...");
 
-            Log.Info($"{this}: Starting to {nameof(Connect)} to {RemoteHost}...");
-
-            var methodRuntime = new Stopwatch();
-            methodRuntime.Start();
-
-            var hostParts = RemoteHost.Split(':');
+            var hostParts = RemoteAddress.Split(':');
             if (hostParts.Length != 2)
-                throw new FormatException($"{this}: {nameof(RemoteHost)} is in the wrong format '{RemoteHost}.' Should be in the format 'hostname:port' for example 'localhost:4356' or 'jumbo.fried.jims.aquarium:4453'");
+                throw new FormatException($"{this}: {nameof(RemoteAddress)} is in the wrong format '{RemoteAddress}.' Should be in the format 'hostname:port' for example 'localhost:4356' or 'jumbo.fried.jims.aquarium:4453'");
             var host = hostParts[0];
             var port = int.Parse(hostParts[1]);
 
@@ -94,125 +100,88 @@ namespace Octgn.Communication
 
             if (addresses.Length == 0) throw new InvalidOperationException($"Unable to find any IP address for host {host} :(");
 
-            var connected = false;
             foreach (var address in addresses) {
                 try {
                     Log.Info($"{this}: Trying to connect to {address}:{port}...");
+
                     cancellationToken.ThrowIfCancellationRequested();
+
                     await _client.ConnectAsync(address, port);
+
+                    _clientStream = _client.GetStream() ?? throw new InvalidOperationException("Null stream " + nameof(_client) + "." + nameof(_client.GetStream));
+
                     Log.Info($"{this}: Connected to {address}:{port}...");
-                    connected = true;
-                    break;
+
+                    return;
                 } catch (Exception ex) {
-                    Log.Warn($"{this}: Error connecting to {RemoteHost} using the address {address}", ex);
+                    Log.Warn($"{this}: Error connecting to {RemoteAddress} using the address {address}", ex);
                 }
             }
 
-            if (connected) {
-                await base.Connect();
-                _isConnected = true;
-            } else {
-                throw new Exception($"{this}: Unable to connect to host {host}");
-            }
+            throw new Exception($"{this}: Unable to connect to host {host}. Check logs for previous errors.");
         }
 
-        private Task _processPacketsTask = Task.CompletedTask;
-
-        protected override async Task ReadPacketsAsync() {
-            Log.Info(this + ": " + nameof(ReadPacketsAsync));
-
-            var client = _client;
-            var buffer = new byte[128];
-            while (_isConnected) {
-                var count = 0;
-                try {
-                    var stream = client?.GetStream();
-                    if (stream == null) return;
-
-                    count = await stream.ReadAsync(buffer, 0, 128);
-                } catch (IOException ex) {
-                    throw new DisconnectedException(this.ToString(), ex);
-                } catch (ObjectDisposedException) {
-                    throw new DisconnectedException(this.ToString());
-                }
-
-                if (count == 0) return;
-
-                foreach (var createdPacket in _packetBuilder.AddData(Serializer, buffer, count)) {
-                    // Don't await this, it causes deadlocks.
-                    var packet = createdPacket;
-
-                    _processingTasks.Add(Task.Run(async () => {
-                        // Running this as ContinuesWith will fire these synchronously
-                        // We assign back to _processPacketsTask so that we can track all of these tasks
-                        // This effectively combines all of these tasks into one
-                        try {
-                            if (!_isConnected) {
-                                Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
-                                return;
-                            }
-                            await ProcessReceivedPacket(packet, ClosedCancellationToken);
-                        } catch (Exception ex) {
-                            Signal.Exception(ex);
-                            IsClosed = true;
-                        } finally {
-                            //_processingTasks.Remove(processTask);
-                        }
-                    }, ClosedCancellationToken).ContinueWith(task => {
-                        // Required to remove this task from our hashset
-                        _processingTasks.Remove(task);
-                    }));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Used to make sure that all of our running tasks end before dispose ends.
-        /// </summary>
-        private readonly HashSet<Task> _processingTasks = new HashSet<Task>();
-
-        public override void Dispose() {
-            Task.WhenAll(_processingTasks);
-            base.Dispose();
-        }
-
-        protected override async Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken) {
+        protected override async Task SendImpl(Packet packet, CancellationToken cancellationToken) {
             try {
-                packet.Sent = DateTimeOffset.Now;
-                var packetData = Packet.Serialize(packet, Serializer);
-                if (packetData == null)
-                    throw new InvalidOperationException($"{this}: packetdata is null");
+                if (packet == null) throw new ArgumentNullException(nameof(packet));
 
-                var stream = _client?.GetStream();
-                if (stream == null) throw new InvalidOperationException($"{this}: Can't send packet {packet.Id}, there's no open connection");
+                var packetData = Packet.Serialize(packet, _serializer)
+                    ?? throw new InvalidOperationException($"{this}: Packet serialization returned null");
 
                 using (var combinedCancellations = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ClosedCancellationToken)) {
-                    await stream.WriteAsync(packetData, 0, packetData.Length, combinedCancellations.Token);
+                    await _clientStream.WriteAsync(packetData, 0, packetData.Length, combinedCancellations.Token);
                 }
+            } catch (DisconnectedException) {
+                throw;
             } catch (ObjectDisposedException) {
-                IsClosed = true;
                 throw new DisconnectedException(this.ToString());
             } catch (Exception ex) {
-                IsClosed = true;
                 throw new DisconnectedException(this.ToString(), ex);
             }
         }
 
-        protected override void Close(ConnectionClosedEventArgs args) {
-            Log.Info($"{this}: Close");
-            if (_isConnected) {
-                _isConnected = false;
-                try {
-                    _client?.Close();
-                } catch (Exception ex) {
-                    Log.Warn($"{this}: {nameof(Close)}", ex);
+        private async Task ReadPackets() {
+            Log.Info($"{this}: {nameof(ReadPackets)}");
+
+            try {
+                var buffer = new byte[1024];
+
+                while (!ClosedCancellationToken.IsCancellationRequested) {
+                    var count = await _clientStream.ReadAsync(buffer, 0, 1024, ClosedCancellationToken).ConfigureAwait(false);
+
+                    if(count == 0) {
+                        throw new DisconnectedException();
+                    }
+
+                    var packets = _packetBuilder.AddData(_serializer, buffer, count).ToArray();
+
+                    ProcessReceivedPackets(packets).SignalOnException();
                 }
-                base.Close(args);
+            } catch (ObjectDisposedException) {
+                Log.Warn($"{this}: Disconnected");
+            } catch (IOException ex) {
+                Log.Warn($"{this}: Disconnected", ex);
+            } catch (TaskCanceledException) {
+                Log.Warn($"{this}: Disconnected. Task canceled.");
+            } catch (DisconnectedException ex) when (ex.InnerException != null) {
+                Log.Warn($"{this}: Disconnected", ex.InnerException);
+            } catch (DisconnectedException) {
+                Log.Warn($"{this}: Disconnected");
+            } finally {
+                Log.Info($"{this}: {nameof(ReadPackets)}: Done reading packets");
             }
+
+            TransitionState(ConnectionState.Closed);
         }
 
         public override IConnection Clone() => new TcpConnection(this);
 
-        public override string ToString() => _toString;
+        protected override void Dispose(bool disposing) {
+            if (!disposing) return;
+
+            _clientStream?.Dispose();
+            _client.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }

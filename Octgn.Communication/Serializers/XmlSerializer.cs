@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Octgn.Communication.Modules.SubscriptionModule;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
@@ -15,7 +16,8 @@ namespace Octgn.Communication.Serializers
 
         public XmlSerializer() {
             IncludedTypes = new Type[] {
-                typeof(User)
+                typeof(User),
+                typeof(UserSubscription)
             };
         }
 

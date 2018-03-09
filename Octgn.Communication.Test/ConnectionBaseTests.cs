@@ -1,33 +1,59 @@
-﻿using NUnit.Framework;
+﻿using FakeItEasy;
+using NUnit.Framework;
 using Octgn.Communication.Packets;
-using Octgn.Communication.Utility;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Test
 {
     [TestFixture]
-    public class ConnectionBaseTests : TestBase
-    {
+    public class ConnectionBaseTests : TestBase {
+        [TestCase]
+        public void Equals() {
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA")))
+            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"))) {
+                Assert.False(conA.Equals(conB));
+                Assert.True(conA.Equals(conA));
+            }
+        }
+
+        [TestCase]
+        public void Initialize_SetsServer() {
+            using(var server = new Server(A.Fake<IConnectionListener>(), A.Fake<IConnectionProvider>()))
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"))) {
+                conA.Initialize(server);
+
+                Assert.AreEqual(conA.Server, server);
+            }
+        }
+
+        [TestCase]
+        public void Initialize_SetsClient() {
+            using(var client = A.Fake<Client>())
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"))) {
+                conA.Initialize(client);
+
+                Assert.AreEqual(conA.Client, client);
+            }
+        }
+
         [TestCase]
         public async Task InMemoryTest() {
-            using (var conA = new InMemoryConnection())
-            using (var conB = new InMemoryConnection()) {
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA")))
+            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"))) {
                 conA.Attach(conB);
 
                 var conACounter = 0;
                 var conBCounter = 0;
 
-                conA.RequestReceived += (sender, args) => {
+                conA.RequestReceived += (_, args) => {
                     conACounter++;
                     return Task.FromResult(new ResponsePacket(args.Request));
                 };
 
-                conB.RequestReceived += (sender, args) => {
+                conB.RequestReceived += (_, args) => {
                     conBCounter++;
                     return Task.FromResult(new ResponsePacket(args.Request));
                 };
@@ -53,13 +79,8 @@ namespace Octgn.Communication.Test
         }
     }
 
-    public class InMemoryConnection : ConnectionBase
-    {
-        public override bool IsConnected => _isConnected;
-
-        private bool _isConnected;
-
-        public InMemoryConnection() {
+    public class InMemoryConnection : ConnectionBase {
+        public InMemoryConnection(IHandshaker handshaker) : base("inmemory", handshaker) {
         }
 
         private InMemoryConnection _attachedConnection;
@@ -72,75 +93,37 @@ namespace Octgn.Communication.Test
             connection._attachedConnection = this;
         }
 
-        public override Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
-            if(_attachedConnection == null)
+        protected override Task ConnectImpl(CancellationToken cancellationToken = default(CancellationToken)) {
+            if (_attachedConnection == null)
                 throw new InvalidOperationException("Nothing to connect to.");
 
-            _isConnected = true;
-
-            return base.Connect(cancellationToken);
-        }
-
-        public override void Dispose() {
-            _isConnected = false;
-            _processPacketsTask.Wait();
-            base.Dispose();
-        }
-
-        private readonly List<TaskCompletionSource<Packet>> _signalPacketReceived = new List<TaskCompletionSource<Packet>>(new[] {
-            new TaskCompletionSource<Packet>()
-        });
-
-        private Task _processPacketsTask = Task.CompletedTask;
-
-        protected override async Task ReadPacketsAsync() {
-            while (_isConnected) {
-                TaskCompletionSource<Packet> firstTcs = null;
-                lock (_signalPacketReceived) {
-                    firstTcs = _signalPacketReceived[0];
-                }
-
-                var tasks = new List<Task>() {
-                    firstTcs.Task,
-                    ClosedCancellationTask
-                };
-
-                var task = await Task.WhenAny(tasks);
-
-                if (task == ClosedCancellationTask) break;
-
-                lock (_signalPacketReceived) {
-                    // Remove the first one that just completed
-                    _signalPacketReceived.RemoveAt(0);
-                    _signalPacketReceived.Add(new TaskCompletionSource<Packet>());
-                }
-
-                var packetTask = task as Task<Packet>;
-
-                _processPacketsTask = _processPacketsTask.ContinueWith(async (prevTask) => {
-                    await ProcessReceivedPacket(packetTask.Result, this.ClosedCancellationToken);
-                }).Unwrap();
-            }
-        }
-
-        protected void AddPacket(Packet packet) {
-            lock (_signalPacketReceived) {
-                foreach(var signal in _signalPacketReceived) {
-                    if (signal.TrySetResult(packet)) return;
-                }
-
-                var tcs = new TaskCompletionSource<Packet>();
-                tcs.SetResult(packet);
-                _signalPacketReceived.Add(tcs);
-            }
-        }
-
-        protected override Task SendPacketImplementation(Packet packet, CancellationToken cancellationToken) {
-            _attachedConnection.AddPacket(packet);
             return Task.CompletedTask;
         }
 
+        protected override Task SendImpl(Packet packet, CancellationToken cancellationToken) {
+            return _attachedConnection.ProcessReceivedPacket(packet);
+        }
+
         public override IConnection Clone() {
+            throw new NotImplementedException("By Design");
+        }
+    }
+
+    public class FakeHandshaker : IHandshaker
+    {
+        private readonly User _user;
+        public FakeHandshaker(string userId) {
+            _user = new User(userId, userId);
+        }
+
+        public Task<HandshakeResult> Handshake(IConnection connection, CancellationToken cancellation) {
+            return Task.FromResult(new HandshakeResult() {
+                Successful = true,
+                User = _user
+            });
+        }
+
+        public Task<HandshakeResult> OnHandshakeRequest(HandshakeRequestPacket request, IConnection connection, CancellationToken cancellation) {
             throw new NotImplementedException();
         }
     }

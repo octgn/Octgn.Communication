@@ -5,31 +5,53 @@ using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public interface IConnection : IEquatable<IConnection>
+    public interface IConnection : IEquatable<IConnection>, IDisposable
     {
-        event EventHandler<ConnectionClosedEventArgs> ConnectionClosed;
+        event EventHandler<ConnectionStateChangedEventArgs> ConnectionStateChanged;
 #pragma warning disable RCS1159 // Use EventHandler<T>.
         event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
         string ConnectionId { get; }
-        bool IsClosed { get; set; }
-        ISerializer Serializer { get; set; }
+        string RemoteAddress { get; }
+        ConnectionState State { get; }
+        User User { get; }
         Task Connect(CancellationToken cancellationToken = default(CancellationToken));
         Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken));
+        /// <summary>
+        /// Creates a new <see cref="IConnection"/> with the same <see cref="RemoteAddress"/>.
+        /// and a <see cref="State"/> of <see cref="ConnectionState.Created"/>.
+        /// Any unprocessed data should be copied over to the new connection.
+        /// </summary>
+        /// <returns></returns>
         IConnection Clone();
+        /// <summary>
+        /// Transitions this <see cref="IConnection"/> into the <see cref="ConnectionState.Closed"/> <see cref="State"/>
+        /// </summary>
+        void Close();
     }
 
-    public class ConnectionClosedEventArgs : EventArgs
+    public enum ConnectionState
+    {
+        Created = 0,
+        Connecting = 1,
+        Handshaking = 2,
+        Connected = 3,
+        Closed = 4
+    }
+
+    public class ConnectionStateChangedEventArgs : EventArgs
     {
         public IConnection Connection { get; set; }
         public Exception Exception { get; set; }
+        public ConnectionState NewState { get; set; }
+        public ConnectionState OldState { get; set; }
 
-        public ConnectionClosedEventArgs() {
+        public ConnectionStateChangedEventArgs() {
 
         }
     }
 
-    public delegate Task RequestReceived(object sender, RequestReceivedEventArgs args);
+    public delegate Task<ResponsePacket> RequestReceived(object sender, RequestReceivedEventArgs args);
 
     public class RequestReceivedEventArgs : EventArgs
     {
@@ -37,39 +59,5 @@ namespace Octgn.Communication
         public bool IsHandled { get; set; }
         public RequestPacket Request { get; set; }
         public ResponsePacket Response { get; set; }
-    }
-
-    public class RequestContext
-    {
-        /// <summary>
-        /// <see cref="IConnection"/> that the <see cref="RequestPacket"/> was received on.
-        /// </summary>
-        public IConnection Connection { get; set; }
-        /// <summary>
-        /// The <see cref="Communication.User"/> who sent the <see cref="RequestPacket"/>.
-        /// </summary>
-        public User User { get; set; }
-        /// <summary>
-        /// The <see cref="Server"/> that received the <see cref="RequestPacket"/>.
-        /// </summary>
-        public Server Server { get; set; }
-        /// <summary>
-        /// The <see cref="Client"/> that received the <see cref="RequestPacket"/>.
-        /// </summary>
-        public Client Client { get; set; }
-
-        public override string ToString() {
-            var soc = "unknown";
-
-            if (Server != null) {
-                soc = Server.ToString();
-            } else if (Client != null) {
-                soc = Client.ToString();
-            } else {
-                throw new InvalidOperationException($"No server of Client");
-            }
-
-            return $"{soc}: {Connection}: {User}";
-        }
     }
 }

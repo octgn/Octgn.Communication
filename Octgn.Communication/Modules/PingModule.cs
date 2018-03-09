@@ -1,30 +1,24 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Threading.Tasks;
-using System.Collections.Generic;
+using System.Threading;
 
 namespace Octgn.Communication.Modules
 {
-    public class PingModule : IServerModule, IClientModule {
-        private readonly RequestHandler _requestHandler = new RequestHandler();
-
+    public class PingModule : Module {
         public PingModule() {
-            _requestHandler.Register(nameof(ICalls.Ping), OnPing);
         }
 
-        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
-            return _requestHandler.HandleRequest(sender, args);
-        }
-        private Task OnPing(object sender, RequestReceivedEventArgs args) {
-            return Task.FromResult(new ResponsePacket(args.Request, DateTime.UtcNow));
-        }
+        public override async Task<ProcessResult> Process(object obj, CancellationToken cancellationToken = default) {
+            if(obj is RequestPacket request) {
+                switch (request.Name) {
+                    case nameof(ICalls.Ping): {
+                            return new ProcessResult(DateTime.UtcNow);
+                        }
+                }
+            }
 
-        public Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
-            return Task.FromResult<object>(null);
-        }
-
-        public IEnumerable<Type> IncludedTypes() {
-            throw new NotImplementedException();
+            return await base.Process(obj, cancellationToken).ConfigureAwait(false);
         }
 
         public interface ICalls

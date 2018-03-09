@@ -13,9 +13,13 @@ namespace Octgn.Communication
         public IPEndPoint EndPoint { get; }
 
         private readonly System.Net.Sockets.TcpListener _listener;
+        private readonly ISerializer _serializer;
+        private readonly IHandshaker _handshaker;
 
-        public TcpListener(IPEndPoint endpoint) {
+        public TcpListener(IPEndPoint endpoint, ISerializer serializer, IHandshaker handshaker) {
             EndPoint = endpoint;
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+            _handshaker = handshaker ?? throw new ArgumentNullException(nameof(handshaker));
             _listener = new System.Net.Sockets.TcpListener(endpoint);
         }
 
@@ -63,12 +67,7 @@ namespace Octgn.Communication
             }
         }
 
-        private IConnection CreateConnection(TcpClient client)
-        {
-            return _connectionCreator(client);
-        }
-
-        private readonly Func<TcpClient,IConnection> _connectionCreator = (client) => new TcpConnection(client);
+        private IConnection CreateConnection(TcpClient client) => new TcpConnection(client, _serializer, _handshaker);
 
         public event ConnectionCreated ConnectionCreated;
 

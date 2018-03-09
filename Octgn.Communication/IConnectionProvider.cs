@@ -1,17 +1,21 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public interface IConnectionProvider
+    public interface IConnectionProvider : IDisposable
     {
         void Initialize(Server server);
 
+        /// <summary>
+        /// Gets all added <see cref="IConnection"/>'s. Further filtering is required to find Connected connections.
+        /// </summary>
+        /// <returns></returns>
         IEnumerable<IConnection> GetConnections();
-        IEnumerable<IConnection> GetConnections(string userId);
-        User GetUser(IConnection connection);
-        string GetUserStatus(string userId);
 
-        Task AddConnection(IConnection connection, User user);
+        Task AddConnection(IConnection connection);
+
+        event EventHandler<ConnectionStateChangedEventArgs> ConnectionStateChanged;
     }
 }

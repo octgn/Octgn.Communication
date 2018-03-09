@@ -1,18 +1,17 @@
 ﻿using Octgn.Communication.Packets;
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public abstract class Client : IDisposable
+    public abstract class Client : Module
     {
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(typeof(Client));
 #pragma warning restore IDE1006 // Naming Styles
 
-        public User User { get; set; }
+        public User User => Connection?.User;
         public IConnection Connection { get; private set; }
 
         public bool IsConnected => Status == ConnectionStatus.Connected;
@@ -20,7 +19,6 @@ namespace Octgn.Communication
         public ConnectionStatus Status {
             get => _status;
             private set {
-
                 // Validate transition
                 switch (_status) {
                     case ConnectionStatus.Disconnected:
@@ -75,24 +73,16 @@ namespace Octgn.Communication
 
         public event EventHandler<ConnectingEventArgs> Connecting;
 
-        public ISerializer Serializer { get; }
-
-        public IAuthenticator Authenticator { get; }
-
         protected abstract IConnection CreateConnection();
-
-        public Client(ISerializer serializer, IAuthenticator authenticator) {
-            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-            Authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
-        }
 
         public Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
             if (Connection != null) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
 
+            Initialize();
+
             return ConnectInternal(cancellationToken);
         }
 
-        private bool _authenticating = false;
         private async Task ConnectInternal(CancellationToken cancellationToken = default(CancellationToken)) {
             Log.Info($"{this}: Connecting...");
 
@@ -100,33 +90,16 @@ namespace Octgn.Communication
                 Status = ConnectionStatus.Connecting;
 
                 Connection = CreateConnection();
-                Connection.Serializer = Serializer;
+                if (Connection is ConnectionBase connectionBase) {
+                    connectionBase.Initialize(this);
+                }
 
                 await Connection.Connect(cancellationToken);
-                Connection.ConnectionClosed += Connection_ConnectionClosed;
+                Connection.ConnectionStateChanged += Connection_ConnectionStateChanged;
                 Connection.RequestReceived += Connection_RequestReceived;
-
-                AuthenticationResult result = null;
-
-                try {
-                    _authenticating = true;
-                    Log.Info($"{this}: Authenticating...");
-
-                    result = await Authenticator.Authenticate(this, Connection, cancellationToken);
-
-                    if (!result.Successful) {
-                        var ex = new AuthenticationException(result.ErrorCode);
-                        Log.Info($"{this}: Authentication Failed {result.ErrorCode}: {ex.Message}");
-                        throw ex;
-                    }
-                } finally {
-                    _authenticating = false;
-                }
 
                 // Should do this before an operation that might block
                 cancellationToken.ThrowIfCancellationRequested();
-
-                this.User = result.User;
 
                 Log.Info($"{this}: Firing connected events...");
                 Status = ConnectionStatus.Connected;
@@ -134,7 +107,7 @@ namespace Octgn.Communication
                 Log.Info($"{this}: Connected");
             } catch {
                 if (Connection != null) {
-                    Connection.ConnectionClosed -= Connection_ConnectionClosed;
+                    Connection.ConnectionStateChanged -= Connection_ConnectionStateChanged;
                     Connection.RequestReceived -= Connection_RequestReceived;
                     Connection = null;
                 }
@@ -143,18 +116,22 @@ namespace Octgn.Communication
             }
         }
 
-        private async void Connection_ConnectionClosed(object sender, ConnectionClosedEventArgs args) {
+        private async void Connection_ConnectionStateChanged(object sender, ConnectionStateChangedEventArgs e) {
             try
             {
-                args.Connection.ConnectionClosed -= Connection_ConnectionClosed;
-                args.Connection.RequestReceived -= Connection_RequestReceived;
+                // The underlying connection was closed.
+                if (e.NewState == ConnectionState.Closed) {
+                    e.Connection.ConnectionStateChanged -= Connection_ConnectionStateChanged;
+                    e.Connection.RequestReceived -= Connection_RequestReceived;
 
-                Log.Warn($"{this}: Disconnected", args.Exception);
+                    Log.Warn($"{this}: Disconnected", e.Exception);
 
-                Status = ConnectionStatus.Disconnected;
-                await ReconnectAsync();
+                    Status = ConnectionStatus.Disconnected;
+
+                    await ReconnectAsync();
+                }
             } catch (Exception ex) {
-                Signal.Exception(ex, nameof(Connection_ConnectionClosed));
+                Signal.Exception(ex, nameof(Connection_ConnectionStateChanged));
             }
         }
 
@@ -165,21 +142,36 @@ namespace Octgn.Communication
         private async Task ReconnectAsync() {
             var currentTry = 0;
             const int maxRetryCount = ReconnectRetryCount;
+
+            bool reportReconnectFailed = true;
+
             try {
                 Log.Info($"{this}: Reconnecting...");
 
                 for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
                 {
-                    if (disposedValue) {
-                        Log.Warn($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
+                    if (IsDisposed) {
+                        Log.Info($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
+                        reportReconnectFailed = false;
                         break;
                     }
 
-                    Log.Info($"{this}: {nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
-
                     try {
-                        await Task.Delay(ReconnectRetryDelay);
-                        await ConnectInternal();
+                        await Task.Delay(ReconnectRetryDelay, _disposedCancellationTokenSource.Token);
+
+                        if (IsDisposed) {
+                            Log.Info($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
+                            reportReconnectFailed = false;
+                            break;
+                        }
+
+                        Log.Info($"{this}: {nameof(ReconnectAsync)}: Reconnecting...{currentTry}/{maxRetryCount}");
+
+                        await ConnectInternal(_disposedCancellationTokenSource.Token);
+                    } catch (TaskCanceledException) {
+                        Log.Info($"{this}: {nameof(ReconnectAsync)}: Disposed canceled, stopping reconnect attempt.");
+                        reportReconnectFailed = false;
+                        break;
                     } catch (Exception ex) {
                         Log.Warn($"{this}: {nameof(ReconnectAsync)}: Error When Reconnecting...Going to try again...", ex);
                         continue;
@@ -189,24 +181,14 @@ namespace Octgn.Communication
                     return;
                 }
             } finally {
-                if (!IsConnected) {
+                if (!IsConnected && reportReconnectFailed) {
                     Log.Warn($"{this}: {nameof(ReconnectAsync)}: Failed to reconnect after {currentTry} out of {maxRetryCount} tries");
                 }
             }
         }
 
-        private readonly Dictionary<Type, IClientModule> _clientModules = new Dictionary<Type, IClientModule>();
-        public void Attach(IClientModule module) {
-            _clientModules.Add(module.GetType(), module);
-        }
-
-        public T GetModule<T>() where T : IClientModule{
-            return (T)_clientModules[typeof(T)];
-        }
-
-
         public Task<ResponsePacket> Request(RequestPacket request, CancellationToken cancellationToken = default(CancellationToken)) {
-            if (!IsConnected && !_authenticating) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
+            if (!IsConnected) throw new NotConnectedException($"{this}: Could not send the request {request}, the client is not connected.");
             return Connection.Request(request, cancellationToken);
         }
 
@@ -215,33 +197,36 @@ namespace Octgn.Communication
         public event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
 
-        private async Task Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
+        private async Task<ResponsePacket> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
 
-            try {
-                args.Context.Client = this;
-                args.Context.User = this.User;
+            args.Context.Client = this;
 
-                await OnRequestReceived(this, args);
+            await OnRequestReceived(this, args);
 
-                if (!args.IsHandled) {
-                    foreach (var handler in _clientModules.Values) {
-                        await handler.HandleRequest(this, args);
-                        if (args.IsHandled)
-                            break;
+            if (!args.IsHandled) {
+
+                foreach(var module in GetModules()) {
+                    var result = await module.Process(args.Request);
+                    if (result.WasProcessed) {
+                        args.IsHandled = true;
+                        args.Response = (result.Result is ResponsePacket resultResponse)
+                            ? resultResponse : new ResponsePacket(args.Request, result.Result);
+
+                        break;
                     }
                 }
-
-                // Copy locally in case it become null
-                var eventHandler = RequestReceived;
-                if(!args.IsHandled && eventHandler != null) {
-                    await eventHandler.Invoke(this, args);
-                }
-            } catch (Exception ex) {
-                Signal.Exception(ex);
             }
+
+            // Copy locally in case it become null
+            var eventHandler = RequestReceived;
+            if(!args.IsHandled && eventHandler != null) {
+                await eventHandler.Invoke(this, args);
+            }
+
+            return args.Response;
         }
 
         protected virtual Task OnRequestReceived(object sender, RequestReceivedEventArgs args) {
@@ -249,35 +234,24 @@ namespace Octgn.Communication
         }
 
         public override string ToString() {
-            return $"{nameof(Client)} {this.User}: {Connection}";
+            var userString = User?.ToString() ?? "UNKNOWNUSER";
+
+            return $"{nameof(Client)}: {userString}: {Connection}";
         }
 
-        #region IDisposable Support
-        protected bool IsDisposed => disposedValue;
-        private bool disposedValue = false; // To detect redundant calls
+        private readonly CancellationTokenSource _disposedCancellationTokenSource = new CancellationTokenSource();
 
-        protected virtual void Dispose(bool disposing) {
-            if (!disposedValue) {
-                if (disposing) {
-                    Log.Info($"{this}: Disposed");
-                    foreach (var moduleKVP in _clientModules) {
-                        var module = moduleKVP.Value;
+        protected override void Dispose(bool disposing) {
+            if (IsDisposed) return;
 
-                        (module as IDisposable)?.Dispose();
-                    }
-                    _clientModules.Clear();
-                    if (Connection != null) {
-                        Connection.IsClosed = true;
-                    }
-                }
-                disposedValue = true;
+            if (disposing) {
+                Log.Info($"{this}: Disposed");
+                _disposedCancellationTokenSource.Cancel();
+                Connection?.Dispose();
+                _disposedCancellationTokenSource.Dispose();
             }
+            base.Dispose(disposing);
         }
-
-        public void Dispose() {
-            Dispose(true);
-        }
-        #endregion
     }
 
     public class ConnectedEventArgs : EventArgs

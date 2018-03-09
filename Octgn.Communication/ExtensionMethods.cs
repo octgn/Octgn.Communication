@@ -1,30 +1,48 @@
 ﻿using Octgn.Communication.Modules;
 using Octgn.Communication.Packets;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
     public static class ExtensionMethods
     {
-        public static void TracePacketReceived(this ILogger log, IConnection con, Packet packet)
-        {
-#if (!TRACE_PACKETS)
-            return;
+#if (TRACE_PACKETS)
+        private static readonly bool IsTracePacketsEnabled = true;
+#else
+        private static readonly bool IsTracePacketsEnabled = false;
 #endif
-#pragma warning disable CS0162 // Unreachable code detected
-            log.Info($"{con.ConnectionId}: <<< PACKET {packet}");
-#pragma warning restore CS0162 // Unreachable code detected
+
+        public static void TracePacketReceived(this ILogger log, IConnection con, Packet packet) {
+            if (!IsTracePacketsEnabled) return;
+
+            log.Info($"{con.ConnectionId} <--- RECIEVED PACKET {packet} <--- {con.RemoteAddress}");
         }
 
-        public static void TracePacketSent(this ILogger log, IConnection con, Packet packet)
-        {
-#if (!TRACE_PACKETS)
-            return;
-#endif
-#pragma warning disable CS0162 // Unreachable code detected
-            log.Info($"{con.ConnectionId}: >>> PACKET {packet}");
-#pragma warning restore CS0162 // Unreachable code detected
+        public static void TracePacketSent(this ILogger log, IConnection con, Packet packet) {
+            if (!IsTracePacketsEnabled) return;
+
+            log.Info($"{con.ConnectionId} ---> SENT PACKET {packet} ---> {con.RemoteAddress}");
+        }
+
+        public static void TracePacketSending(this ILogger log, IConnection con, Packet packet) {
+            if (!IsTracePacketsEnabled) return;
+
+            log.Info($"{con.ConnectionId} -?-> SENDING PACKET {packet} -?-> {con.RemoteAddress}");
+        }
+
+        public static void TraceWaitingForAck(this ILogger log, IConnection con, ulong packetId) {
+            if (!IsTracePacketsEnabled) return;
+
+            log.Info($"{con}: Waiting for ack for #{packetId}");
+        }
+
+        public static void TraceAckReceived(this ILogger log, IConnection con, IAck ack) {
+            if (!IsTracePacketsEnabled) return;
+
+            log.Info($"{con}: Ack for #{ack.PacketReceived} received");
         }
 
         public static async Task<TimeSpan> Ping(this IConnection connection) {
@@ -43,12 +61,27 @@ namespace Octgn.Communication
             return client.Request(new Message(toUserId, message));
         }
 
-        public static Task SignalOnException(this Task task) {
-            return task.ContinueWith(t => {
-                if (t.Exception != null) {
-                    Signal.Exception(t.Exception);
-                }
-            });
+        public static async void SignalOnException(this Task task) {
+            try {
+                await task.ConfigureAwait(false);
+            } catch (Exception ex) {
+                Signal.Exception(ex);
+            }
+        }
+
+        public static IEnumerable<IConnection> GetConnections(this IConnectionProvider connectionProvider, string userId) {
+            return connectionProvider.GetConnections().Where(con => con.User.Id.Equals(userId, StringComparison.InvariantCultureIgnoreCase));
+        }
+
+        /// <summary>
+        /// Truncates a string if it's too long.
+        /// Found here https://stackoverflow.com/a/6724896/222054
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="maxChars"></param>
+        /// <returns></returns>
+        public static string Truncate(this string value, int maxChars) {
+            return value.Length <= maxChars ? value : value.Substring(0, maxChars) + "...";
         }
     }
 }

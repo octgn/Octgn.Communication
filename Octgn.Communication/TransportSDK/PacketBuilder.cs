@@ -10,6 +10,10 @@ namespace Octgn.Communication.TransportSDK
         {
         }
 
+        public PacketBuilder(PacketBuilder other) {
+            _data.AddRange(other._data);
+        }
+
         public IEnumerable<Packet> AddData(ISerializer serializer, byte[] data, int count)
         {
             _data.AddRange(data.Take(count));

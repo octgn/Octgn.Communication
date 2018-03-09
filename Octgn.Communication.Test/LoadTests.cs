@@ -4,6 +4,7 @@ using Octgn.Communication.Serializers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ namespace Octgn.Communication.Test
         private static readonly Random _random = new Random();
 
         [TestCase]
+        [Category("LoadTest")]
         public async Task LoadTest() {
             var port = NextPort;
 
@@ -23,15 +25,15 @@ namespace Octgn.Communication.Test
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), serializer, new TestAuthenticationHandler())) {
-                server.IsEnabled = true;
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Initialize();
 
                 var clients = new Dictionary<string, Client>();
 
                 for (var i = 0; i < MaxUserId; i++) {
                     var name = i.ToString();
 
-                    var client = new LoadTestClient(port, MaxUserId, serializer, new TestAuthenticator(name));
+                    var client = new LoadTestClient(port, MaxUserId, serializer, new TestHandshaker(name));
                     await client.Connect();
 
                     clients.Add(name, client);
@@ -59,7 +61,7 @@ namespace Octgn.Communication.Test
                 var perSec = server.RequestCount / sw.Elapsed.TotalSeconds;
                 Console.WriteLine($"Per Second: {perSec}");
 
-                if (perSec < 1000) Assert.Fail($"Per second too slow");
+                if (perSec < 3000) Assert.Fail($"Per second too slow");
             }
         }
 
@@ -71,7 +73,7 @@ namespace Octgn.Communication.Test
 
         private static IEnumerable<Task> GenerateRequestTasks(Client client, int maxUserId) {
             while (true) {
-                string toUser = GetNextRandomNumber(0, maxUserId)
+                var toUser = GetNextRandomNumber(0, maxUserId)
                                 .Select(id => id.ToString())
                                 .First(id => id != client.User.Id);
 
@@ -80,14 +82,29 @@ namespace Octgn.Communication.Test
                     Body = $"Hi from {client.User.Id} to {toUser}"
                 };
 
-                yield return client.Request(request);
+                yield return RequestTask(client, request);
             }
+        }
+
+        private static async Task RequestTask(Client client, RequestPacket request) {
+            var now = DateTime.Now;
+
+            var result = await client.Request(request);
+
+            var requestTime = DateTime.Now - now;
+
+            var percentOfTimeout = requestTime.Ticks / (double)ConnectionBase.WaitForResponseTimeout.Ticks;
+
+            var withinPercent = 100 * (1 - percentOfTimeout);
+
+            if (withinPercent <= 20)
+                Console.WriteLine($"REQUEST WITHIN {withinPercent}% OF TIMEOUT");
         }
 
         public class LoadTestClient : TestClient
         {
             private readonly int _maxUserId;
-            public LoadTestClient(int port, int maxUserId, ISerializer serializer, IAuthenticator authenticator) : base(port, serializer, authenticator) {
+            public LoadTestClient(int port, int maxUserId, ISerializer serializer, IHandshaker handshaker) : base(port, serializer, handshaker) {
                 _maxUserId = maxUserId;
             }
 

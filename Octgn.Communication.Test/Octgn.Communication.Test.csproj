@@ -63,6 +63,8 @@
     <Compile Include="LoadTests.cs" />
     <Compile Include="Modules\StatsModuleTests.cs" />
     <Compile Include="Modules\SubscriptionModule\Implementation.cs" />
+    <Compile Include="ServerModuleEvents.cs" />
+    <Compile Include="TestHandshaker.cs" />
     <Compile Include="Packets\AckPacketTests.cs" />
     <Compile Include="Packets\DataPacketTests.cs" />
     <Compile Include="Packets\DictionaryPacketTests.cs" />
@@ -77,7 +79,6 @@
     <Compile Include="SlowListener.cs" />
     <Compile Include="TestBase.cs" />
     <Compile Include="TestClient.cs" />
-    <Compile Include="TestUserProvider.cs" />
     <Compile Include="Utility\UIDTests.cs" />
   </ItemGroup>
   <ItemGroup>

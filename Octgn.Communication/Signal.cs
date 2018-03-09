@@ -11,34 +11,31 @@ namespace Octgn.Communication
         public static ConcurrentQueue<ExceptionEventArgs> Exceptions { get; } = new ConcurrentQueue<ExceptionEventArgs>();
 
         public static void Exception(Exception exception, string message = null) {
-            if(exception is AggregateException agg) {
-                foreach(var ex in agg.InnerExceptions) {
+            if (exception is AggregateException agg) {
+                foreach (var ex in agg.InnerExceptions) {
                     Exception(ex, message);
                 }
-            } else FireOrQueueException(exception, message);
+            } else {
+                FireOnException(exception, message);
+            }
         }
 
-        private static async void FireOrQueueException(Exception ex, string message) {
+        private static async void FireOnException(Exception ex, string message) {
             var args = new ExceptionEventArgs {
                 Exception = ex,
                 Message = message,
             };
 
-            if (OnException != null) {
-                try {
-                    await Task.Run(() => { // Run on a threadpool thread
-                        OnException?.Invoke(null, args);
-                    });
-                } catch (Exception innerException) {
-                    Exceptions.Enqueue(args);
-                    Exceptions.Enqueue(new ExceptionEventArgs {
-                        Exception = innerException,
-                        Message = nameof(FireOrQueueException)
-                    });
-                }
-            } else {
-                Exceptions.Enqueue(args);
-            }
+            var handler = OnException;
+
+            if (handler == null)
+                throw new InvalidOperationException($"{nameof(Signal)} caught an exception, but nothing handled it.");
+
+            // We use await here because it will cause the async void to break off into a threadpool thread
+            await Task.Factory.FromAsync(
+                (callback, @object) => handler.BeginInvoke(null, (ExceptionEventArgs)@object, callback, null),
+                (result) => handler.EndInvoke(result),
+                args);
         }
     }
 
@@ -49,7 +46,7 @@ namespace Octgn.Communication
         public string Message { get; set; }
 
         public override string ToString() {
-            return Message + Environment.NewLine + Exception.ToString();
+            return Message + Environment.NewLine + Exception;
         }
     }
 }

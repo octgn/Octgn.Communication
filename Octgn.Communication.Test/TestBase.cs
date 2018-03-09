@@ -14,7 +14,8 @@ namespace Octgn.Communication.Test
     [SetUpFixture]
     public abstract class TestBase
     {
-        public static int MaxTimeout => Debugger.IsAttached ? (int)TimeSpan.FromMinutes(30).TotalMilliseconds : (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
+        //public static int MaxTimeout => Debugger.IsAttached ? (int)TimeSpan.FromMinutes(30).TotalMilliseconds : (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
+        public static int MaxTimeout => (int)TimeSpan.FromSeconds(30).TotalMilliseconds;
 
         private static TaskCompletionSource<object> _currentTest;
         private static readonly object _locker = new object();
@@ -30,12 +31,13 @@ namespace Octgn.Communication.Test
             }
 
             LoggerFactory.DefaultMethod = (c) => new InMemoryLogger(c);
-            ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
+            //ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
+            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(10);
 
             while (InMemoryLogger.LogMessages.Count > 0) {
                 InMemoryLogger.LogMessages.TryDequeue(out var result);
             }
-            Signal.OnException += Signal_OnException;
+            //Signal.OnException += Signal_OnException;
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
         }
 
@@ -49,13 +51,12 @@ namespace Octgn.Communication.Test
         public void TearDown() {
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Test complete.");
 
-            Signal.OnException -= Signal_OnException;
+            //Signal.OnException -= Signal_OnException;
 
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Cleaned up GC");
-
 
             var exceptionCount = Signal.Exceptions.Count;
 
@@ -71,7 +72,7 @@ namespace Octgn.Communication.Test
                 Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: LOGS =============================");
                 while (InMemoryLogger.LogMessages.Count > 0) {
                     if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
-                        Console.WriteLine(result.ToString());
+                        Console.WriteLine(result);
                     }
                 }
             }

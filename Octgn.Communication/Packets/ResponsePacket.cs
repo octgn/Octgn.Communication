@@ -44,7 +44,6 @@ namespace Octgn.Communication.Packets
         {
             base.Serialize(writer, serializer);
             writer.Write(PacketId);
-            writer.Write(PacketReceived.ToString("o"));
         }
 
         internal override void Deserialize(BinaryReader reader, ISerializer serializer)
@@ -52,7 +51,7 @@ namespace Octgn.Communication.Packets
             base.Deserialize(reader, serializer);
 
             PacketId = reader.ReadUInt64();
-            PacketReceived = DateTimeOffset.Parse(reader.ReadString());
+            PacketReceived = DateTimeOffset.Now;
         }
 
         [DebuggerStepThrough]

@@ -1,11 +1,12 @@
 ﻿using Octgn.Communication.Packets;
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Modules
 {
-    public class StatsModule : IServerModule, IClientModule
+    public class StatsModule : Module
     {
         private static readonly ILogger Log = LoggerFactory.Create(nameof(StatsModule));
 
@@ -18,54 +19,106 @@ namespace Octgn.Communication.Modules
                 _stats = value;
             }
         }
+
+        /// <summary>
+        /// The amount of time between sending all the connected clients the <see cref="Stats"/>
+        /// </summary>
+        public TimeSpan UpdateClientsInterval { get; set; } = TimeSpan.FromSeconds(30);
+
         private Stats _stats;
         public event EventHandler<StatsModuleUpdateEventArgs> StatsModuleUpdate;
 
         private readonly Server _server;
+        private readonly Client _client;
         public StatsModule(Server server) {
             _server = server ?? throw new ArgumentNullException(nameof(server));
         }
 
-        public StatsModule() {
+        public override void Initialize() {
+            if (_server != null) {
+                SendStatsToUsers().SignalOnException();
+            }
+            base.Initialize();
+        }
+
+        public StatsModule(Client client) {
+            _client = client ?? throw new ArgumentNullException(nameof(client));
             _stats = new Stats() {
                 OnlineUserCount = 0,
                 Date = DateTime.Now
             };
         }
 
-        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
-            // We only want to process client side requests
-            if (args.Context.Client == null) return Task.CompletedTask;
+        public override async Task<ProcessResult> Process(object obj, CancellationToken cancellationToken = default) {
+            if (obj is Stats stats) {
 
-            // Not the type of request we're looking for
-            if (args.Request.Name != nameof(Stats)) return Task.CompletedTask;
+                Stats = stats;
 
-            Stats = (Stats)args.Request;
+                StatsModuleUpdate?.Invoke(this, new StatsModuleUpdateEventArgs() {
+                    Stats = Stats
+                });
 
-            StatsModuleUpdate?.Invoke(this, new StatsModuleUpdateEventArgs() {
-                Stats = Stats
-            });
+                return ProcessResult.Processed;
+            }
 
-            return Task.CompletedTask;
+            return await base.Process(obj, cancellationToken).ConfigureAwait(false);
         }
 
-        public async Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
-            // Will not scale well
-            // Called on the server side
-            var stats = _stats;
-            var onlineUsers = _server.ConnectionProvider.GetConnections().Count();
+        private async Task SendStatsToUsers() {
+            if (IsDisposed) {
+                Log.Info($"Disposed. Stopping {nameof(SendStatsToUsers)}");
+                return;
+            }
+
+            try {
+                await Task.Delay(UpdateClientsInterval, _disposedCancellationTokenSource.Token);
+            } catch (TaskCanceledException) {
+                Log.Info($"Disposed. Stopping {nameof(SendStatsToUsers)}");
+                return;
+            }
+
+            if (IsDisposed) {
+                Log.Info($"Disposed. Stopping {nameof(SendStatsToUsers)}");
+                return;
+            }
+
+            var onlineUsers = _server.ConnectionProvider
+                .GetConnections()
+                .Count(con => con.State == ConnectionState.Connected);
+
             _stats = new Stats() {
                 Date = DateTimeOffset.Now,
                 OnlineUserCount = onlineUsers
             };
+
+            StatsModuleUpdate?.Invoke(this, new StatsModuleUpdateEventArgs() {
+                Stats = _stats
+            });
 
             try {
                 await _server.Request(new Stats(_stats));
             } catch (ErrorResponseException ex) when (ex.Code == ErrorResponseCodes.UserOffline) {
                 // Don't care.
                 // This happens when there are no users online
-                Log.Warn(nameof(UserStatusChanged), ex);
+                Log.Warn(nameof(SendStatsToUsers), ex);
             }
+
+            if (IsDisposed) {
+                Log.Info($"Disposed. Stopping {nameof(SendStatsToUsers)}");
+                return;
+            }
+
+            SendStatsToUsers().SignalOnException();
+        }
+
+        private readonly CancellationTokenSource _disposedCancellationTokenSource = new CancellationTokenSource();
+
+        protected override void Dispose(bool disposing) {
+            if (disposing) {
+                _disposedCancellationTokenSource.Cancel();
+                _disposedCancellationTokenSource.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 
@@ -108,6 +161,6 @@ namespace Octgn.Communication.Modules
 
         public override bool RequiresAck => false;
 
-        protected override string PacketStringData => $"INFO";
+        protected override string PacketStringData => $"INFO: UOC={OnlineUserCount}";
     }
 }

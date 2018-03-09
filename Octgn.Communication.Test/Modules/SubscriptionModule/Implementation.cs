@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using Octgn.Communication.Serializers;
-using Octgn.Communication.Packets;
 using FakeItEasy;
 using Octgn.Communication.Modules.SubscriptionModule;
 
@@ -18,104 +17,18 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
     public class Implementation : TestBase
     {
         [TestCase]
-        public async Task FailedAuthenticationCausesServerToDisconnectClient() {
-            var port = NextPort;
-
-            var authenticationHandler = A.Fake<IAuthenticationHandler>();
-
-            A.CallTo(() => authenticationHandler.Authenticate(A<Server>.Ignored, A<IConnection>.Ignored, A<AuthenticationRequestPacket>.Ignored, A<CancellationToken>.Ignored))
-                .Returns(Task.FromResult(new AuthenticationResult() {
-                    ErrorCode = "TestError"
-                }));
-
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), authenticationHandler)) {
-                var serverModule = new TestServerModule();
-                server.Attach(serverModule);
-                server.IsEnabled = true;
-
-                // Need to handle the 'hello' packet we send
-                serverModule.Request += (sender, args) => {
-                    if (args.Request.Name == "hello")
-                        args.IsHandled = true;
-                };
-
-                using (var client = new TestClient(port, new XmlSerializer(), new TestAuthenticator("bad"))) {
-                    try {
-                        await client.Connect();
-                    } catch (AuthenticationException ex) {
-                        Assert.AreEqual(ex.ErrorCode, "TestError");
-                    }
-
-                    try {
-                        await client.Request(new RequestPacket("hello"));
-                        Assert.Fail("client request succeeded, it shouldn't have");
-                    } catch (DisconnectedException) { }
-                    catch (NotConnectedException) { }
-
-                    // make sure we're not connected
-                    Assert.IsFalse(client.IsConnected);
-                }
-            }
-        }
-
-        [TestCase]
-        public async Task SendUserMessage() {
-            var port = NextPort;
-
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
-
-                server.IsEnabled = true;
-
-                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
-                    clientA.InitializeSubscriptionModule();
-                    clientB.InitializeSubscriptionModule();
-
-                    await clientA.Connect();
-                    await clientB.Connect();
-
-                    using (var eveMessageReceived = new AutoResetEvent(false)) {
-                        string messageBody = null;
-
-                        clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return Task.CompletedTask;
-
-                            messageBody = message.Body;
-
-                            args.Response = new ResponsePacket(args.Request);
-
-                            eveMessageReceived.Set();
-
-                            return Task.CompletedTask;
-                        };
-
-                        var result = await clientA.SendMessage(clientB.User.Id, "asdf");
-
-                        Assert.IsNotNull(result);
-
-                        Assert.AreEqual("asdf", messageBody);
-
-                        if (!eveMessageReceived.WaitOne(MaxTimeout))
-                            Assert.Fail("clientB never got their message :(");
-                    }
-                }
-            }
-        }
-
-        [TestCase]
         public async Task ReceiveUserSubscriptionUpdates() {
             var port = NextPort;
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider(server.ConnectionProvider)));
 
-                server.IsEnabled = true;
+                server.Initialize();
 
-                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestHandshaker("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestHandshaker("clientB"))) {
                     clientA.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
 
@@ -182,15 +95,13 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public async Task ReceiveUserUpdates() {
             var port = NextPort;
 
-            TestConnectionProvider userProvider = null;
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider(server.ConnectionProvider)));
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), userProvider = new TestConnectionProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
+                server.Initialize();
 
-                server.IsEnabled = true;
-
-                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
+                using (var clientA = new TestClient(port, new XmlSerializer(), new TestHandshaker("clientA")))
+                using (var clientB = new TestClient(port, new XmlSerializer(), new TestHandshaker("clientB"))) {
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 
@@ -214,7 +125,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         Assert.NotNull(updatedUserArgs);
 
                         Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
-                        Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
+                        Assert.AreEqual(TestChatDataProvider.UserOfflineStatus, updatedUserArgs.UserStatus);
 
                         updatedUserArgs = null;
 
@@ -226,9 +137,9 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         Assert.NotNull(updatedUserArgs);
 
                         Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
-                        Assert.AreEqual(TestConnectionProvider.OnlineStatus, updatedUserArgs.UserStatus);
+                        Assert.AreEqual(TestChatDataProvider.UserOnlineStatus, updatedUserArgs.UserStatus);
 
-                        clientB.Connection.IsClosed = true;
+                        clientB.Connection.Close();
 
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");
@@ -236,162 +147,11 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                         Assert.NotNull(updatedUserArgs);
 
                         Assert.AreEqual(nameof(clientB), updatedUserArgs.User.Id);
-                        Assert.AreEqual(TestConnectionProvider.OfflineStatus, updatedUserArgs.UserStatus);
+                        Assert.AreEqual(TestChatDataProvider.UserOfflineStatus, updatedUserArgs.UserStatus);
                     }
                 }
             }
         }
-
-        [TestCase]
-        public async Task SendMessageToOfflineUser_ThrowsException() {
-            var port = NextPort;
-
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.IsEnabled = true;
-
-                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA"))) {
-                    await clientA.Connect();
-
-                    try {
-                        var result = await clientA.Request(new Message("clientB", "asdf"));
-                        Assert.Fail("Request should have failed");
-                    } catch (ErrorResponseException ex) {
-                        Assert.AreEqual(Octgn.Communication.ErrorResponseCodes.UserOffline, ex.Code);
-                    }
-                }
-            }
-        }
-
-        [TestCase]
-        public async Task SendMessage_Fails_IfNoResponseNotHandledByReceiver() {
-            var port = NextPort;
-
-            ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(60);
-
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port)), new TestUserProvider(), new XmlSerializer(), new TestAuthenticationHandler())) {
-                server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider()));
-
-                server.IsEnabled = true;
-
-                using (var clientA = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientA")))
-                using (var clientB = new TestClient(port, new XmlSerializer(), new TestAuthenticator("clientB"))) {
-                    clientA.InitializeSubscriptionModule();
-                    clientB.InitializeSubscriptionModule();
-
-                    await clientA.Connect();
-                    await clientB.Connect();
-
-                    using (var eveMessageReceived = new AutoResetEvent(false)) {
-                        string messageBody = null;
-
-                        clientB.RequestReceived += (sender, args) => {
-                            if (!(args.Request is Message message)) return Task.CompletedTask;
-
-                            messageBody = message.Body;
-
-                            // Don't set a response, this should trigger the error
-                            //args.Response = new ResponsePacket(args.Request);
-
-                            eveMessageReceived.Set();
-                            return Task.CompletedTask;
-                        };
-
-                        var sendTask = clientA.SendMessage(clientB.User.Id, "asdf");
-
-                        if (!eveMessageReceived.WaitOne(MaxTimeout))
-                            Assert.Fail("clientB never got their message :(");
-
-                        try {
-                            var result = await sendTask;
-                        } catch (ErrorResponseException ex) {
-                            Assert.AreEqual(ErrorResponseCodes.UnhandledRequest, ex.Code);
-                            return;
-                        }
-
-                        Assert.Fail("SendMessage should have failed due to no response being sent back");
-                    }
-                }
-            }
-        }
-    }
-
-    public class TestConnectionProvider : IConnectionProvider, IDisposable
-    {
-        public const string OnlineStatus = nameof(OnlineStatus);
-        public const string OfflineStatus = nameof(OfflineStatus);
-
-        private UserConnectionMap OnlineUsers { get; }
-
-        private Server _server;
-
-        public TestConnectionProvider() {
-            OnlineUsers = new UserConnectionMap();
-            OnlineUsers.UserConnectionChanged += OnlineUsers_UserConnectionChanged;
-        }
-
-        private async void OnlineUsers_UserConnectionChanged(object sender, UserConnectionChangedEventArgs e) {
-            try {
-                await _server.UpdateUserStatus(e.User, e.IsConnected ? TestConnectionProvider.OnlineStatus : TestConnectionProvider.OfflineStatus);
-            } catch (ObjectDisposedException) {
-            } catch (Exception ex) {
-                Signal.Exception(ex);
-            }
-        }
-
-        public IEnumerable<IConnection> GetConnections(string userId) {
-            return OnlineUsers.GetConnections(userId);
-        }
-
-        public void Initialize(Server server) {
-            _server = server;
-        }
-
-        public User GetUser(IConnection connection) {
-            return OnlineUsers.GetUser(connection);
-        }
-
-        public Task AddConnection(IConnection connection, User user) {
-            return OnlineUsers.AddConnection(connection, user);
-        }
-
-        public string GetUserStatus(string userId) {
-            return OnlineUsers.GetConnections(userId).Any() ? OnlineStatus : OfflineStatus;
-        }
-
-        public IEnumerable<IConnection> GetConnections() {
-            return OnlineUsers.GetConnections();
-        }
-
-        #region IDisposable Support
-        private bool _disposedValue = false; // To detect redundant calls
-
-        protected virtual void Dispose(bool disposing) {
-            if (!_disposedValue) {
-                if (disposing) {
-                    OnlineUsers.Dispose();
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
-                // TODO: set large fields to null.
-
-                _disposedValue = true;
-            }
-        }
-
-        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
-        // ~TestConnectionProvider() {
-        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-        //   Dispose(false);
-        // }
-
-        // This code added to correctly implement the disposable pattern.
-        public void Dispose() {
-            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
-            Dispose(true);
-            // TODO: uncomment the following line if the finalizer is overridden above.
-            // GC.SuppressFinalize(this);
-        }
-        #endregion
     }
 
     public class TestChatDataProvider : IDataProvider
@@ -403,14 +163,17 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
         public event EventHandler<UserSubscriptionUpdatedEventArgs> UserSubscriptionUpdated;
 
-        public TestChatDataProvider() {
+        private readonly IConnectionProvider _connectionProvider;
+
+        public TestChatDataProvider(IConnectionProvider connectionProvider) {
             Subscriptions = new Dictionary<string, IList<UserSubscription>>();
+            _connectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
         }
 
         public virtual void AddUserSubscription(UserSubscription subscription) {
             subscription.Id = (++IndexCounter).ToString();
 
-            if(!Subscriptions.TryGetValue(subscription.SubscriberUserId, out IList<UserSubscription> subscriptions)) {
+            if (!Subscriptions.TryGetValue(subscription.SubscriberUserId, out var subscriptions)) {
                 Subscriptions.Add(subscription.SubscriberUserId, subscriptions = new List<UserSubscription>());
             }
             subscriptions.Add(subscription);
@@ -428,7 +191,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         }
 
         public virtual IEnumerable<UserSubscription> GetUserSubscriptions(string userId) {
-            if(!Subscriptions.TryGetValue(userId, out IList<UserSubscription> subscriptions)) {
+            if (!Subscriptions.TryGetValue(userId, out var subscriptions)) {
                 Subscriptions.Add(userId, subscriptions = new List<UserSubscription>());
             }
             return subscriptions;
@@ -467,45 +230,20 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public UserSubscription GetUserSubscription(string subscriptionId) {
             return Subscriptions.SelectMany(userSubs => userSubs.Value).FirstOrDefault(sub => sub.Id == subscriptionId);
         }
-    }
 
-    public class TestAuthenticator : IAuthenticator
-    {
-        public string UserId { get; set; }
-
-        public TestAuthenticator(string userId) {
-            UserId = userId;
+        public void SetUserStatus(string userId, string status) {
+            throw new NotImplementedException();
         }
 
-        public async Task<AuthenticationResult> Authenticate(Client client, IConnection connection, CancellationToken cancellationToken = default(CancellationToken)) {
-            var authRequest = new AuthenticationRequestPacket("asdf") {
-                ["userid"] = UserId
-            };
-            var result = await client.Request(authRequest, cancellationToken);
-            return result.As<AuthenticationResult>();
-        }
-    }
+        public const string UserOnlineStatus = "Online";
+        public const string UserOfflineStatus = "Offline";
 
-    public class TestAuthenticationHandler : IAuthenticationHandler
-    {
-        public Task<AuthenticationResult> Authenticate(Server server, IConnection connection, AuthenticationRequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
-            var userId = (string)packet["userid"];
+        public string GetUserStatus(string userId) {
+            return (_connectionProvider.GetConnections(userId).Any(con => con.State == ConnectionState.Connected))
+                ? UserOnlineStatus
+                : UserOfflineStatus;
 
-            return Task.FromResult(AuthenticationResult.Success(new User(userId, userId)));
-        }
-    }
-
-    public class TestServerModule : IServerModule
-    {
-        public event EventHandler<RequestReceivedEventArgs> Request;
-
-        public Task HandleRequest(object sender, RequestReceivedEventArgs args) {
-            Request?.Invoke(sender, args);
-            return Task.CompletedTask;
-        }
-
-        public Task UserStatusChanged(object sender, UserStatusChangedEventArgs e) {
-            return Task.CompletedTask;
+            throw new NotImplementedException();
         }
     }
 }

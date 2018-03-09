@@ -12,5 +12,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
         void UpdateUserSubscription(UserSubscription subscription);
         IEnumerable<string> GetUserSubscribers(string userId);
         UserSubscription GetUserSubscription(string subscriptionId);
+        void SetUserStatus(string userId, string status);
+        string GetUserStatus(string userId);
     }
 }

@@ -50,7 +50,8 @@ namespace Octgn.Communication
         }
 
         private void Write(string message) {
-            Trace.WriteLine(message);
+            if(Debugger.IsAttached)
+                Debug.WriteLine(message);
             LogMessages.Enqueue(message);
             if (MaxBufferSize > 0) {
                 if (LogMessages.Count > MaxBufferSize) {

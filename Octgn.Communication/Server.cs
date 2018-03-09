@@ -1,150 +1,80 @@
 ﻿using Octgn.Communication.Packets;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public class Server : IDisposable
+    public class Server : Module
     {
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(nameof(Server));
 #pragma warning restore IDE1006 // Naming Styles
 
-        public bool IsEnabled {
-            get => _isEnabled = Listener?.IsEnabled ?? false;
-            set {
-                if (_isEnabled == value) return;
-                _isEnabled = value;
-                if (_isEnabled) {
-                    Log.Info($"Enabled Server");
-                } else {
-                    Log.Info($"Disabled Server");
-                }
-
-                var list = Listener;
-
-                if (list != null)
-                    list.IsEnabled = value;
-            }
-        }
-
-        private bool _isEnabled;
-
-        public ConcurrentConnectionCollection Connections { get; } = new ConcurrentConnectionCollection();
-
         public IConnectionListener Listener { get; }
         public IConnectionProvider ConnectionProvider { get; }
-        public ISerializer Serializer { get; }
 
-        public Server(IConnectionListener listener, IConnectionProvider connectionProvider, ISerializer serializer, IAuthenticationHandler authenticationHandler)
-        {
+        public Server(IConnectionListener listener, IConnectionProvider connectionProvider) {
             Listener = listener ?? throw new ArgumentNullException(nameof(listener));
             ConnectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
-            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-            _authenticationHandler = authenticationHandler ?? throw new ArgumentNullException(nameof(authenticationHandler));
 
             Listener.ConnectionCreated += Listener_ConnectionCreated;
-            Connections.RequestReceived += Connections_RequestReceived;
 
             // Must be at the end
             ConnectionProvider.Initialize(this);
         }
 
-        private void Listener_ConnectionCreated(object sender, ConnectionCreatedEventArgs args)
-        {
+        public override void Initialize() {
+            Listener.IsEnabled = true;
+
+            base.Initialize();
+        }
+
+        private void Listener_ConnectionCreated(object sender, ConnectionCreatedEventArgs args) {
             try {
                 Log.Info($"Connection Created {args.Connection.ConnectionId}");
-                args.Connection.Serializer = Serializer;
-                Connections.Add(args.Connection);
+                args.Connection.RequestReceived += Connection_RequestReceived;
+                if (args.Connection is ConnectionBase connectionBase) {
+                    connectionBase.Initialize(this);
+                }
+                ConnectionProvider.AddConnection(args.Connection);
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }
         }
 
-        private readonly List<IServerModule> _serverModules = new List<IServerModule>();
-        private readonly IAuthenticationHandler _authenticationHandler;
+        protected override void Dispose(bool disposing) {
+            if (IsDisposed) return;
 
-        public void Attach(IServerModule module) {
-            lock (_serverModules) {
-                _serverModules.Add(module);
+            if (disposing) {
+                Log.Info("Disposing server");
+
+                Listener.IsEnabled = false;
+                Listener.ConnectionCreated -= Listener_ConnectionCreated;
+                (Listener as IDisposable)?.Dispose();
+
+                ConnectionProvider.Dispose();
             }
-        }
-
-        public T GetModule<T>() where T : IServerModule {
-            lock(_serverModules)
-                return _serverModules.OfType<T>().FirstOrDefault();
-        }
-
-        public async Task UpdateUserStatus(User user, string status) {
-            VerifyNotDisposed();
-
-            var handlerArgs = new UserStatusChangedEventArgs() {
-                User = user,
-                Status = status
-            };
-            IServerModule[] serverModules = null;
-
-            lock(_serverModules)
-                serverModules = _serverModules.ToArray();
-
-            foreach (var module in serverModules) {
-                try {
-                    VerifyNotDisposed();
-                    await module.UserStatusChanged(this, handlerArgs);
-                    if (handlerArgs.IsHandled) {
-                        break;
-                    }
-                } catch (Exception ex) {
-                    Signal.Exception(ex);
-                }
-            }
-        }
-
-        private int _disposeCallCount;
-        protected bool IsDisposed => _disposeCallCount > 0;
-
-        private void VerifyNotDisposed() {
-            if (IsDisposed) throw new ObjectDisposedException(nameof(Server));
-        }
-
-        public void Dispose()
-        {
-            if (Interlocked.CompareExchange(ref _disposeCallCount, 1, 0) > 0) throw new InvalidOperationException($"{nameof(Server)} is Disposed");
-
-            Log.Info("Disposing server");
-            Connections.IsClosed = true;
-
-            IServerModule[] serverModules = null;
-
-            lock (_serverModules) {
-                serverModules = _serverModules.ToArray();
-                _serverModules.Clear();
-            }
-
-            foreach(var module in serverModules) {
-                (module as IDisposable)?.Dispose();
-            }
-            Listener.IsEnabled = false;
-            Listener.ConnectionCreated -= Listener_ConnectionCreated;
-            (Listener as IDisposable)?.Dispose();
+            base.Dispose(disposing);
         }
 
         public async Task<ResponsePacket> Request(RequestPacket request, string destination = null) {
             if (this.IsDisposed) throw new InvalidOperationException($"Could not send the request {request}, the server is disposed.");
-            if (!this.IsEnabled) throw new NotConnectedException($"Could not send the request {request}, the server is not enabled.");
 
             var sendCount = 0;
             ResponsePacket receiverResponse = null;
 
             request.Destination = destination;
 
-            var connections = (!string.IsNullOrWhiteSpace(destination)
-                ? ConnectionProvider.GetConnections(destination)
-                : ConnectionProvider.GetConnections()).ToArray();
+            var connectionQuery = ConnectionProvider.GetConnections()
+                .Where(con => con.State == ConnectionState.Connected);
+
+            if (!string.IsNullOrWhiteSpace(destination)) {
+                connectionQuery = connectionQuery.Where(con => con.User.Id.Equals(destination, StringComparison.InvariantCultureIgnoreCase));
+            }
+
+            var connections = connectionQuery.ToArray();
 
             Log.Info($"Sending {request} to {connections.Length} connections: {string.Join(",", connections.Take(10))}");
 
@@ -166,7 +96,7 @@ namespace Octgn.Communication
 
             Log.Info($"Sent {request} to {sendCount} clients");
 
-            if(receiverResponse == null && request.RequiresAck)
+            if (receiverResponse == null && request.RequiresAck)
                 throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {request} routed to {destination}, but they didn't handle the request.", false);
 
             return receiverResponse;
@@ -175,7 +105,7 @@ namespace Octgn.Communication
         public int RequestCount { get => _requestCount; }
         private int _requestCount;
 
-        private async Task Connections_RequestReceived(object sender, RequestReceivedEventArgs args) {
+        private async Task<ResponsePacket> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
@@ -186,29 +116,21 @@ namespace Octgn.Communication
 
             Log.Info($"{args.Context}: Handling {args.Request}");
             try {
-                if (args.Request.Name == nameof(AuthenticationRequestPacket)) {
-                    var result = await _authenticationHandler.Authenticate(this, args.Context.Connection, (AuthenticationRequestPacket)args.Request);
-
-                    if (result.Successful) {
-                        await ConnectionProvider.AddConnection(args.Context.Connection, result.User);
-                    }
-
-                    args.Response = new ResponsePacket(args.Request, result);
-                    args.IsHandled = true;
-
-                    return;
-                }
-
-                args.Context.User = args.Request.Origin = ConnectionProvider.GetUser(args.Context.Connection);
+                args.Request.Origin = args.Context.Connection.User;
 
                 if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
                     args.Response = await Request(args.Request, args.Request.Destination);
                     args.Response.RequestPacketId = (ulong)args.Request.Id;
-                    args.IsHandled = true;
                 } else {
-                    foreach (var module in _serverModules) {
-                        await module.HandleRequest(this, args);
-                        if (args.IsHandled) break;
+                    foreach (var module in GetModules()) {
+                        var result = await module.Process(args.Request);
+                        if (result.WasProcessed) {
+                            args.IsHandled = true;
+                            args.Response = (result.Result is ResponsePacket resultResponse)
+                                ? resultResponse : new ResponsePacket(args.Request, result.Result);
+
+                            break;
+                        }
                     }
                 }
             } catch (ErrorResponseException ex) {
@@ -220,6 +142,7 @@ namespace Octgn.Communication
                 var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "UnhandledServerError", true);
                 args.Response = new ResponsePacket(args.Request, err);
             }
+            return args.Response;
         }
     }
 }

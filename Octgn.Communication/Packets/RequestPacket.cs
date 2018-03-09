@@ -6,6 +6,8 @@ namespace Octgn.Communication.Packets
 {
     public class RequestPacket : DictionaryPacket
     {
+        public RequestContext Context { get; set; }
+
         public string Name {
             get => (string)this["name"];
             set => this["name"] = value;
@@ -29,11 +31,10 @@ namespace Octgn.Communication.Packets
             : this(request.Name, request.Properties) {
             this.Origin = request.Origin;
             this.Destination = request.Destination;
-            this._packetTypeId = request.PacketTypeId;
+            this.PacketTypeId = request.PacketTypeId;
         }
 
-        public override byte PacketTypeId => _packetTypeId;
-        private byte _packetTypeId = 3;
+        public override byte PacketTypeId { get; } = 3;
 
         public override bool RequiresAck => true;
 
