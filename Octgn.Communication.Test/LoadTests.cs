@@ -4,7 +4,6 @@ using Octgn.Communication.Serializers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
@@ -33,8 +32,8 @@ namespace Octgn.Communication.Test
                 for (var i = 0; i < MaxUserId; i++) {
                     var name = i.ToString();
 
-                    var client = new LoadTestClient(port, MaxUserId, serializer, new TestHandshaker(name));
-                    await client.Connect();
+                    var client = new LoadTestClient(MaxUserId, CreateClientConnectionProvider(port,name));
+                    await client.Connect("localhost");
 
                     clients.Add(name, client);
                 }
@@ -101,10 +100,11 @@ namespace Octgn.Communication.Test
                 Console.WriteLine($"REQUEST WITHIN {withinPercent}% OF TIMEOUT");
         }
 
-        public class LoadTestClient : TestClient
+        public class LoadTestClient : Client
         {
             private readonly int _maxUserId;
-            public LoadTestClient(int port, int maxUserId, ISerializer serializer, IHandshaker handshaker) : base(port, serializer, handshaker) {
+            public LoadTestClient(int maxUserId, IClientConnectionProvider clientConnectionProvider)
+                : base(clientConnectionProvider) {
                 _maxUserId = maxUserId;
             }
 

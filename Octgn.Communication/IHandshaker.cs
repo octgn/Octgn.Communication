@@ -6,7 +6,7 @@ namespace Octgn.Communication
 {
     public interface IHandshaker
     {
-        Task<HandshakeResult> Handshake(IConnection connection, CancellationToken cancellation);
-        Task<HandshakeResult> OnHandshakeRequest(HandshakeRequestPacket request, IConnection connection, CancellationToken cancellation);
+        Task<HandshakeResult> Handshake(IConnection connection, CancellationToken cancellationToken);
+        Task<HandshakeResult> OnHandshakeRequest(HandshakeRequestPacket request, IConnection connection, CancellationToken cancellationToken);
     }
 }

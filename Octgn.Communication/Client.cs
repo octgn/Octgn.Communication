@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public abstract class Client : Module
+    public class Client : Module
     {
 #pragma warning disable IDE1006 // Naming Styles
         private static readonly ILogger Log = LoggerFactory.Create(typeof(Client));
@@ -15,6 +15,12 @@ namespace Octgn.Communication
         public IConnection Connection { get; private set; }
 
         public bool IsConnected => Status == ConnectionStatus.Connected;
+
+        private readonly IClientConnectionProvider _clientConnectionProvider;
+
+        public Client(IClientConnectionProvider clientConnectionProvider) {
+            _clientConnectionProvider = clientConnectionProvider ?? throw new ArgumentNullException(nameof(clientConnectionProvider));
+        }
 
         public ConnectionStatus Status {
             get => _status;
@@ -73,10 +79,13 @@ namespace Octgn.Communication
 
         public event EventHandler<ConnectingEventArgs> Connecting;
 
-        protected abstract IConnection CreateConnection();
+        private string _host;
 
-        public Task Connect(CancellationToken cancellationToken = default(CancellationToken)) {
+        public Task Connect(string host, CancellationToken cancellationToken = default(CancellationToken)) {
             if (Connection != null) throw new InvalidOperationException($"{this}: Cannot call Connect more than once.");
+            if (string.IsNullOrWhiteSpace(host)) throw new ArgumentNullException(nameof(host));
+
+            _host = host;
 
             Initialize();
 
@@ -89,7 +98,7 @@ namespace Octgn.Communication
             try {
                 Status = ConnectionStatus.Connecting;
 
-                Connection = CreateConnection();
+                Connection = _clientConnectionProvider.Create(_host);
                 if (Connection is ConnectionBase connectionBase) {
                     connectionBase.Initialize(this);
                 }
@@ -270,4 +279,9 @@ namespace Octgn.Communication
     }
 
     public enum ConnectionStatus { Disconnected, Connecting, Connected }
+
+    public interface IClientConnectionProvider
+    {
+        IConnection Create(string host);
+    }
 }

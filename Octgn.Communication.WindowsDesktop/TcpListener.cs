@@ -11,6 +11,7 @@ namespace Octgn.Communication
 #pragma warning restore IDE1006 // Naming Styles
 
         public IPEndPoint EndPoint { get; }
+        public ISerializer Serializer => _serializer;
 
         private readonly System.Net.Sockets.TcpListener _listener;
         private readonly ISerializer _serializer;

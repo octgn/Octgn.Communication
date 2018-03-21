@@ -1,11 +1,8 @@
 ﻿using System;
 using NUnit.Framework;
-using System.Net;
-using System.Diagnostics;
 using System.Threading;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Linq;
+using Octgn.Communication.Serializers;
 
 namespace Octgn.Communication.Test
 {
@@ -95,5 +92,13 @@ namespace Octgn.Communication.Test
 
         private static int _currentPort = 7920;
         public static int NextPort => Interlocked.Increment(ref _currentPort);
+
+        protected Client CreateClient(int port, string userId) {
+            return new Client(CreateClientConnectionProvider(port, userId));
+        }
+
+        protected IClientConnectionProvider CreateClientConnectionProvider(int port, string userId) {
+            return new TestClientConnectionProvider(port, new XmlSerializer(), new TestHandshaker(userId));
+        }
     }
 }

@@ -11,6 +11,7 @@ namespace Octgn.Communication
         string Name { get; }
         void Initialize();
         Task<ProcessResult> Process(object obj, CancellationToken cancellationToken = default);
+        IEnumerable<Type> IncludedTypes { get; }
     }
 
     public class Module : IModule
@@ -28,7 +29,7 @@ namespace Octgn.Communication
         public virtual async Task<ProcessResult> Process(object obj, CancellationToken cancellationToken = default) {
             if (_children == null) return ProcessResult.Unprocessed;
 
-            foreach(var child in _children.Values) {
+            foreach (var child in _children.Values) {
                 var result = await child.Process(obj, cancellationToken);
                 if (result.WasProcessed) return result;
             }
@@ -87,12 +88,14 @@ namespace Octgn.Communication
 
             if (_children == null) return;
 
-            foreach(var child in _children.Values) {
+            foreach (var child in _children.Values) {
                 child.Initialize();
             }
         }
 
         #endregion Initialization
+
+        public virtual IEnumerable<Type> IncludedTypes => (_children == null) ? Enumerable.Empty<Type>() : _children.Values.SelectMany(child => child.IncludedTypes);
 
         public override string ToString() {
             return $"Module {Name}";

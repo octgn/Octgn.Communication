@@ -7,6 +7,7 @@
             set => _listener.IsEnabled = value;
         }
 
+        public ISerializer Serializer => _listener.Serializer;
 
         public event ConnectionCreated ConnectionCreated {
             add => _listener.ConnectionCreated += value;

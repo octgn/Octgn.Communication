@@ -4,6 +4,7 @@ namespace Octgn.Communication
 {
     public interface IConnectionListener
     {
+        ISerializer Serializer { get; }
         bool IsEnabled { get; set; }
         event ConnectionCreated ConnectionCreated;
     }

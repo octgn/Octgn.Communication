@@ -29,9 +29,9 @@ namespace Octgn.Communication.Test
 
                 try {
                     Signal.OnException += Signal_OnException;
-                    using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("a"))) {
+                    using (var client = CreateClient(port, "a")) {
                         client.Connected += (_, __) => throw expectedException;
-                        await client.Connect();
+                        await client.Connect("localhost");
                     }
                 } finally {
                     Signal.OnException -= Signal_OnException;
@@ -47,12 +47,12 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
                 server.Initialize();
 
-                using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("a"))) {
-                    await client.Connect();
+                using (var client = CreateClient(port, "a")) {
+                    await client.Connect("localhost");
 
                     try
                     {
-                        await client.Connect();
+                        await client.Connect("localhost");
                         Assert.Fail("Should have thrown an exception");
                     } catch (InvalidOperationException)
                     {
@@ -70,8 +70,8 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
                 server.Initialize();
 
-                using (var client = new TestClient(port, new XmlSerializer(), new TestHandshaker("userA"))) {
-                    await client.Connect();
+                using (var client = CreateClient(port, "userA")) {
+                    await client.Connect("localhost");
 
                     var tcs = new TaskCompletionSource<RequestPacket>();
 
