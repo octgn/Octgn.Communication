@@ -357,7 +357,10 @@ namespace Octgn.Communication
 
                 try {
                     await SendImpl(packet, cancellationToken);
-                } catch (DisconnectedException) {
+                } catch (DisconnectedException ex) {
+                    if(ex.InnerException != null) {
+                        Log.Warn($"Disconnected sending packet {packet}: {ex.InnerException}");
+                    }
                     TransitionState(ConnectionState.Closed);
                     throw;
                 }
@@ -377,7 +380,10 @@ namespace Octgn.Communication
 
                 try {
                     await SendImpl(packet, cancellationToken);
-                } catch (DisconnectedException) {
+                } catch (DisconnectedException ex) {
+                    if(ex.InnerException != null) {
+                        Log.Warn($"Disconnected sending packet {packet}: {ex.InnerException}");
+                    }
                     TransitionState(ConnectionState.Closed);
                     throw;
                 }
