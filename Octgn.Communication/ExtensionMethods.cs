@@ -18,19 +18,19 @@ namespace Octgn.Communication
         public static void TracePacketReceived(this ILogger log, IConnection con, Packet packet) {
             if (!IsTracePacketsEnabled) return;
 
-            log.Info($"{con.ConnectionId} <--- RECIEVED PACKET {packet} <--- {con.RemoteAddress}");
+            log.Info($"{con} <--- RECIEVED PACKET {packet} <--- {con.RemoteAddress}");
         }
 
         public static void TracePacketSent(this ILogger log, IConnection con, Packet packet) {
             if (!IsTracePacketsEnabled) return;
 
-            log.Info($"{con.ConnectionId} ---> SENT PACKET {packet} ---> {con.RemoteAddress}");
+            log.Info($"{con} ---> SENT PACKET {packet} ---> {con.RemoteAddress}");
         }
 
         public static void TracePacketSending(this ILogger log, IConnection con, Packet packet) {
             if (!IsTracePacketsEnabled) return;
 
-            log.Info($"{con.ConnectionId} -?-> SENDING PACKET {packet} -?-> {con.RemoteAddress}");
+            log.Info($"{con} -?-> SENDING PACKET {packet} -?-> {con.RemoteAddress}");
         }
 
         public static void TraceWaitingForAck(this ILogger log, IConnection con, ulong packetId) {
