@@ -188,8 +188,10 @@ namespace Octgn.Communication
 
         public event RequestReceived RequestReceived;
 
-        protected Task ProcessReceivedPackets(IEnumerable<Packet> packets) {
-            return Task.WhenAll(packets.Select(ProcessReceivedPacket));
+        protected async Task ProcessReceivedPackets(IEnumerable<Packet> packets) {
+            foreach(var packet in packets) {
+                await ProcessReceivedPacket(packet);
+            }
         }
 
         protected async Task ProcessReceivedPacket(Packet packet) {
