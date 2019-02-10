@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Test
@@ -20,11 +21,12 @@ namespace Octgn.Communication.Test
         public async Task LoadTest() {
             var port = NextPort;
 
-            const int MaxUserId = 400;
+            const int MaxUserId = 100;
+            const int TotalMessageCount = 5000;
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), serializer, new TestHandshaker()), new InMemoryConnectionProvider(), serializer)) {
                 server.Initialize();
 
                 var clients = new Dictionary<string, Client>();
@@ -32,35 +34,43 @@ namespace Octgn.Communication.Test
                 for (var i = 0; i < MaxUserId; i++) {
                     var name = i.ToString();
 
-                    var client = new LoadTestClient(MaxUserId, CreateClientConnectionProvider(port,name));
+                    var client = new LoadTestClient(MaxUserId, CreateClientConnectionProvider(port,name), serializer);
                     await client.Connect("localhost");
 
                     clients.Add(name, client);
                 }
 
-                var sw = new Stopwatch();
+                Console.WriteLine("All clients connected");
 
-                var tasks = clients
-                    .Values
-                    .SelectMany(client => GenerateRequestTasks(client, MaxUserId).Take(20))
-                    .ToArray();
+                var tasks = GenerateRequestTasks(clients, MaxUserId, TotalMessageCount);
+
+                var sw = new Stopwatch();
 
                 sw.Start();
 
-                await Task.WhenAll(tasks);
+                try {
+                    await Task.WhenAll(tasks);
+                } finally {
 
-                sw.Stop();
+                    sw.Stop();
 
-                foreach (var client in clients.Values) {
-                    client.Dispose();
+                    foreach (var client in clients.Values) {
+                        client.Dispose();
+
+                        while (client.Status != ConnectionStatus.Disconnected) {
+                            Thread.Yield();
+                        }
+                    }
+
+                    Console.WriteLine(server.PacketCount + " - " + sw.Elapsed);
+
+                    var perSec = server.PacketCount / sw.Elapsed.TotalSeconds;
+                    Console.WriteLine($"Total     : {server.PacketCount}");
+                    Console.WriteLine($"Per Second: {perSec}");
+
+                    if (perSec < 3000) Assert.Fail($"FAILED: Per second {perSec} too slow");
                 }
 
-                Console.WriteLine(server.RequestCount + " - " + sw.Elapsed);
-
-                var perSec = server.RequestCount / sw.Elapsed.TotalSeconds;
-                Console.WriteLine($"Per Second: {perSec}");
-
-                if (perSec < 3000) Assert.Fail($"Per second too slow");
             }
         }
 
@@ -70,18 +80,22 @@ namespace Octgn.Communication.Test
             }
         }
 
-        private static IEnumerable<Task> GenerateRequestTasks(Client client, int maxUserId) {
-            while (true) {
+        private static IEnumerable<Task> GenerateRequestTasks(Dictionary<string, Client> clients, int maxUserId, int totalMessageCount) {
+            for (var i = 0; i < totalMessageCount; i++) {
+                var fromId = GetNextRandomNumber(0, maxUserId).First().ToString();
+
                 var toUser = GetNextRandomNumber(0, maxUserId)
                                 .Select(id => id.ToString())
-                                .First(id => id != client.User.Id);
+                                .First(id => id != fromId);
+
+                var fromClient = clients[fromId];
 
                 var request = new Message() {
                     Destination = toUser,
-                    Body = $"Hi from {client.User.Id} to {toUser}"
+                    Body = $"Hi from {fromClient.User.Id} to {toUser}"
                 };
 
-                yield return RequestTask(client, request);
+                yield return RequestTask(fromClient, request);
             }
         }
 
@@ -89,22 +103,13 @@ namespace Octgn.Communication.Test
             var now = DateTime.Now;
 
             var result = await client.Request(request);
-
-            var requestTime = DateTime.Now - now;
-
-            var percentOfTimeout = requestTime.Ticks / (double)ConnectionBase.WaitForResponseTimeout.Ticks;
-
-            var withinPercent = 100 * (1 - percentOfTimeout);
-
-            if (withinPercent <= 20)
-                Console.WriteLine($"REQUEST WITHIN {withinPercent}% OF TIMEOUT");
         }
 
         public class LoadTestClient : Client
         {
             private readonly int _maxUserId;
-            public LoadTestClient(int maxUserId, IClientConnectionProvider clientConnectionProvider)
-                : base(clientConnectionProvider) {
+            public LoadTestClient(int maxUserId, IClientConnectionProvider clientConnectionProvider, ISerializer serializer)
+                : base(clientConnectionProvider, serializer) {
                 _maxUserId = maxUserId;
             }
 

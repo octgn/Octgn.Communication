@@ -26,6 +26,8 @@ namespace Octgn.Communication.Serializers
             _serializers.Add(typeof(List<NameValuePair>), new SystemXmlSerializer(typeof(List<NameValuePair>)));
             _serializers.Add(typeof(HandshakeResult), new SystemXmlSerializer(typeof(HandshakeResult)));
             _serializers.Add(typeof(ErrorResponseData), new SystemXmlSerializer(typeof(ErrorResponseData)));
+            _serializers.Add(typeof(DateTime), new SystemXmlSerializer(typeof(DateTime)));
+            _serializers.Add(typeof(string), new SystemXmlSerializer(typeof(string)));
         }
 
         public XmlSerializer2(params Type[] types) {

@@ -34,11 +34,9 @@ namespace Octgn.Communication.Test.Packets
 
         public void Serialization(object obj, ISerializer serializer)
         {
-            var reqPacket = new RequestPacket("name") { Id = 99 };
-
             var resp = obj == null
-                ? new ResponsePacket(reqPacket)
-                : new ResponsePacket(reqPacket, obj);
+                ? new ResponsePacket()
+                : new ResponsePacket(obj);
 
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms, Encoding.Default, true))

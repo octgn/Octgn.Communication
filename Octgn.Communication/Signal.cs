@@ -8,8 +8,6 @@ namespace Octgn.Communication
     {
         public static event OnException OnException;
 
-        public static ConcurrentQueue<ExceptionEventArgs> Exceptions { get; } = new ConcurrentQueue<ExceptionEventArgs>();
-
         public static void Exception(Exception exception, string message = null) {
             if (exception is AggregateException agg) {
                 foreach (var ex in agg.InnerExceptions) {

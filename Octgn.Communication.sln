@@ -9,10 +9,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Octgn.Communication.Windows
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Octgn.Communication", "Octgn.Communication\Octgn.Communication.csproj", "{6A6D0A70-9E84-4F77-BB25-63EAB434E26A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Load", "Load\Load.csproj", "{DBEE0211-13F0-44C9-8EBD-D72408097789}"
+EndProject
 Global
-	GlobalSection(Performance) = preSolution
-		HasPerformanceSessions = true
-	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
@@ -30,11 +29,18 @@ Global
 		{6A6D0A70-9E84-4F77-BB25-63EAB434E26A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6A6D0A70-9E84-4F77-BB25-63EAB434E26A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6A6D0A70-9E84-4F77-BB25-63EAB434E26A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DBEE0211-13F0-44C9-8EBD-D72408097789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DBEE0211-13F0-44C9-8EBD-D72408097789}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DBEE0211-13F0-44C9-8EBD-D72408097789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DBEE0211-13F0-44C9-8EBD-D72408097789}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D13D006A-6318-445D-A0C6-8A1598E6DC84}
+	EndGlobalSection
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
 	EndGlobalSection
 EndGlobal

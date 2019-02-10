@@ -22,7 +22,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider(server.ConnectionProvider)));
 
                 server.Initialize();
@@ -95,7 +95,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
         public async Task ReceiveUserUpdates() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Attach(new ServerSubscriptionModule(server, new TestChatDataProvider(server.ConnectionProvider)));
 
                 server.Initialize();

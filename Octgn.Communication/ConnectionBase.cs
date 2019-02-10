@@ -34,10 +34,34 @@ namespace Octgn.Communication
 
         protected IHandshaker Handshaker { get; }
 
-        protected ConnectionBase(string remoteAddress, IHandshaker handshaker) {
+        protected ISerializer Serializer { get; }
+
+        public Server Server { get; }
+
+        public Client Client { get; }
+
+        protected ConnectionBase(string remoteAddress, IHandshaker handshaker, ISerializer serializer, Server server) {
             if (string.IsNullOrWhiteSpace(remoteAddress)) throw new ArgumentNullException(remoteAddress);
 
             Handshaker = handshaker ?? throw new ArgumentNullException(nameof(handshaker));
+
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+
+            Server = server ?? throw new ArgumentNullException(nameof(server));
+
+            RemoteAddress = remoteAddress;
+
+            _toString = $"{{0}}:{ConnectionId}:{RemoteAddress}:{{1}}";
+        }
+
+        protected ConnectionBase(string remoteAddress, IHandshaker handshaker, ISerializer serializer, Client client) {
+            if (string.IsNullOrWhiteSpace(remoteAddress)) throw new ArgumentNullException(remoteAddress);
+
+            Handshaker = handshaker ?? throw new ArgumentNullException(nameof(handshaker));
+
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+
+            Client = client ?? throw new ArgumentNullException(nameof(client));
 
             RemoteAddress = remoteAddress;
 
@@ -54,16 +78,6 @@ namespace Octgn.Communication
             var str = string.Format(_toString, parent, (object)User ?? string.Empty);
 
             return str;
-        }
-
-        public Server Server { get;  private set; }
-        public virtual void Initialize(Server server) {
-            Server = server ?? throw new ArgumentNullException(nameof(server));
-        }
-
-        public Client Client { get; private set; }
-        public virtual void Initialize(Client client) {
-            Client = client ?? throw new ArgumentNullException(nameof(client));
         }
 
         #region State Machine
@@ -188,99 +202,110 @@ namespace Octgn.Communication
 
         public event RequestReceived RequestReceived;
 
-        protected async Task ProcessReceivedPackets(IEnumerable<Packet> packets) {
-            foreach(var packet in packets) {
-                await ProcessReceivedPacket(packet);
-            }
-        }
+        public event PacketReceived PacketReceived;
 
-        protected async Task ProcessReceivedPacket(Packet packet) {
+        protected async Task ProcessReceivedData(ulong packetId, byte[] data, ISerializer serializer) {
+            SerializedPacket serializedPacket = null;
             try {
-                Log.TracePacketReceived(this, packet);
+                if (data.Length < SerializedPacket.HEADER_SIZE)
+                    throw new InvalidOperationException("Data received is smaller than header.");
+
+                serializedPacket = SerializedPacket.Read(data);
+
+                Log.TracePacketReceived(this, serializedPacket);
 
                 if (State == ConnectionState.Closed) {
-                    Log.Warn($"{this}: Connection is closed. Dropping packet {packet}");
+                    Log.Warn($"{this}: Connection is closed. Dropping packet {serializedPacket}");
                     return;
                 }
 
-                if(packet is RequestPacket rp) {
-                    rp.Context = new RequestContext() {
+                {
+                    var args = new PacketReceivedEventArgs() {
+                        PacketId = packetId,
+                        Packet = serializedPacket,
+                        Connection = this
+                    };
+
+                    var packetEventHandler = PacketReceived;
+
+                    if (packetEventHandler != null) {
+                        foreach (var handler in packetEventHandler.GetInvocationList().Cast<PacketReceived>()) {
+                            await handler(this, args);
+                            if (args.IsHandled) return;
+                        }
+                    }
+                }
+
+                var packet = serializedPacket.DeserializePacket(serializer);
+
+                if(packet is HandshakeRequestPacket helloPacket) {
+                    //TODO: Move this into the Server class
+
+                    if (Handshaker == null) throw new InvalidOperationException($"{this}: Can't handle {helloPacket} because there is no {nameof(Handshaker)}");
+
+                    var result = await Handshaker.OnHandshakeRequest(helloPacket, this, ClosedCancellationToken);
+
+                    if (result.Successful) {
+                        User = result.User;
+                    }
+
+                    var response = new ResponsePacket(result);
+
+                    await Respond(packetId, response, ClosedCancellationToken);
+
+                    TransitionState(result.Successful ? ConnectionState.Connected : ConnectionState.Closed);
+                } else if(packet is RequestPacket requestPacket) {
+                    var requestContext = new RequestContext() {
                         Client = Client,
                         Server = Server,
                         Connection = this
                     };
-                }
 
-                switch (packet) {
-                    case HandshakeRequestPacket helloPacket: {
-                            if (Handshaker == null) throw new InvalidOperationException($"{this}: Can't handle {helloPacket} because there is no {nameof(Handshaker)}");
+                    var requestEventHandler = RequestReceived;
 
-                            var result = await Handshaker.OnHandshakeRequest(helloPacket, this, ClosedCancellationToken);
+                    if (requestEventHandler == null)
+                        throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
 
-                            if (result.Successful) {
-                                User = result.User;
-                            }
+                    requestPacket.Context = requestContext;
 
-                            var response = new ResponsePacket(helloPacket, result);
+                    var args = new RequestReceivedEventArgs() {
+                        Request = requestPacket,
+                        Context = requestContext
+                    };
 
-                            await Respond(helloPacket, response, ClosedCancellationToken);
-
-                            TransitionState(result.Successful ? ConnectionState.Connected : ConnectionState.Closed);
-
-                            break;
+                    foreach (var handler in requestEventHandler.GetInvocationList().Cast<RequestReceived>()) {
+                        var result = await handler(this, args);
+                        if (result != null) {
+                            args.Response = result;
+                            args.IsHandled = true;
                         }
-                    case RequestPacket requestPacket: {
-                            var requestEventHandler = RequestReceived;
+                        if (args.IsHandled) break;
+                    }
 
-                            if (requestEventHandler == null)
-                                throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
+                    // No response required.
+                    if (!args.IsHandled && !requestPacket.Flags.HasFlag(PacketFlag.AckRequired)) return;
 
-                            var args = new RequestReceivedEventArgs() {
-                                Request = requestPacket,
-                                Context = new RequestContext {
-                                    Connection = this
-                                }
-                            };
+                    var unhandledRequestResponse = new ResponsePacket(new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
 
-                            foreach (var handler in requestEventHandler.GetInvocationList().Cast<RequestReceived>()) {
-                                var result = await handler(this, args);
-                                if (result != null) {
-                                    args.Response = result;
-                                    args.IsHandled = true;
-                                }
-                                if (args.IsHandled) break;
-                            }
+                    var response = (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Response));
 
-                            // No response required.
-                            if (!args.IsHandled && !requestPacket.RequiresAck) break;
-
-                            var unhandledRequestResponse = new ResponsePacket(requestPacket, new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
-
-                            var response = args.Response
-                                ?? (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(requestPacket, null));
-
-                            await Respond(requestPacket, response, ClosedCancellationToken);
-
-                            break;
-                        }
-                    case IAck ack: {
-                            if (_awaitingAck.TryGetValue(ack.PacketId, out var tcs))
-                                tcs.SetResult(packet);
-                            else
-                                throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
-                            break;
-                        }
-                    default:
+                    await Respond(packetId, response, ClosedCancellationToken);
+                } else if (packet is IAck ack) {
+                    if (_awaitingAck.TryGetValue(ack.PacketId, out var tcs))
+                        tcs.SetResult(packet);
+                    else
+                        throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
+                } else {
 #pragma warning disable RCS1079 // Throwing of new NotImplementedException.
-                        throw new NotImplementedException($"{this}: {packet.GetType().Name} packet not supported.");
+                    throw new NotImplementedException($"{this}: {packet.GetType().Name} packet not supported.");
 #pragma warning restore RCS1079 // Throwing of new NotImplementedException.
                 }
             } catch (Exception ex) {
-                Signal.Exception(ex, $"{this}: Error processing packet {packet}");
+                Signal.Exception(ex, $"{this}: Error processing packet {serializedPacket}");
             }
         }
 
-        private async Task Respond(RequestPacket request, ResponsePacket response, CancellationToken cancellationToken) {
+        public async Task Respond(ulong requestPacketId, ResponsePacket response, CancellationToken cancellationToken) {
             if (response == null) throw new ArgumentNullException(nameof(response));
 
             var isCritical = response.Data is ErrorResponseData erd
@@ -289,14 +314,12 @@ namespace Octgn.Communication
             if (isCritical)
                 Log.Warn($"{this}: Sent critical error {response.Data}: Closing");
 
-            StampPacketBeforeSend(response);
-
-            response.PacketId = (ulong)request.Id;
+            response.PacketId = requestPacketId;
 
             try {
                 await Send(response, cancellationToken);
             } catch (DisconnectedException ex) {
-                Log.Warn($"{this}: {nameof(ProcessReceivedPacket)}: Error sending response packet {response}, disconnected.", ex);
+                Log.Warn($"{this}: {nameof(Respond)}: Error sending response packet {response}, disconnected.", ex);
             }
 
             // If we sent a packet that had a critical error, close the connection.
@@ -311,10 +334,9 @@ namespace Octgn.Communication
 
         public async Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
             if (State == ConnectionState.Closed) throw new InvalidOperationException($"{this}: Connection is closed.");
-            StampPacketBeforeSend(packet);
             var response = await Send(packet, cancellationToken);
 
-            if (response == null && !packet.RequiresAck) return null;
+            if (response == null && !packet.Flags.HasFlag(PacketFlag.AckRequired)) return null;
 
             if (!(response is ResponsePacket responsePacket))
                 throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response?.GetType()?.Name ?? "null"} response");
@@ -325,63 +347,70 @@ namespace Octgn.Communication
 
         #endregion
 
-        private ulong _nextPacketId;
-        private void StampPacketBeforeSend(Packet packet) {
-            packet.Id = _nextPacketId++;
-            packet.Sent = DateTimeOffset.Now;
-        }
-
         /// <summary>
-        /// Sends a <see cref="Packet"/>. Returns a <see cref="Task"/>
-        /// that completes when the <see cref="Packet"/> is sent.
+        /// Sends data. Returns a <see cref="Task"/>
+        /// that completes when the data is sent.
         /// </summary>
-        /// <param name="packet"></param>
+        /// <param name="packetId"></param>
+        /// <param name="data"></param>
         /// <param name="cancellationToken"></param>
         /// <returns><see cref="Task"/>
-        /// that completes when the <see cref="Packet"/> is sent.</returns>
-        protected abstract Task SendImpl(Packet packet, CancellationToken cancellationToken);
+        /// that completes when the data is sent.</returns>
+        /// <exception cref="DisconnectedException">If the connection is closed</exception>
+        protected abstract Task SendImpl(ulong packetId, byte[] data, CancellationToken cancellationToken);
+
+        private ulong _nextPacketId = 1;
+        private readonly object _idLocker = new object();
 
         /// <summary>
-        /// Sends and configures a <see cref="Packet"/>.
-        /// Returns a <see cref="Task<IAck>"/> that completes when
-        /// the packet is sent and an ack is receieved (if one was required: see <see cref="Packet"/>.<see cref="Packet.RequiresAck"/>)
+        /// Sends and configures a <see cref="IPacket"/>.
         /// </summary>
         /// <param name="packet">packet</param>
         /// <param name="cancellationToken">cancellation</param>
         /// <returns><see cref="Task"/> containing an Ack, if one was returned and required.</returns>
-        protected async Task<IAck> Send(Packet packet, CancellationToken cancellationToken) {
-            if (packet?.Id == null) throw new ArgumentNullException(nameof(packet), nameof(packet) + " or packet.Id is null");
-            // Just incase this value changes, we want to be able to look it up in our dictionary for sure in the finally block
-            var packetId = packet.Id.Value;
+        public async Task<IAck> Send(IPacket packet, CancellationToken cancellationToken) {
+            //TODO: This should return an IPacket, not an IAck, that way we don't have to deserialize it fully
+            // Maybe, and IAck could share whatever required property we need so we can deserialize it
+            // like a SerailizedPacket. So possibly merge an IAck with an IPacket
+            if (packet == null) throw new ArgumentNullException(nameof(packet));
 
-            if (!packet.RequiresAck) {
-                Log.TracePacketSending(this, packet);
-
-                try {
-                    await SendImpl(packet, cancellationToken);
-                } catch (DisconnectedException ex) {
-                    if(ex.InnerException != null) {
-                        Log.Warn($"Disconnected sending packet {packet}: {ex.InnerException}");
-                    }
-                    TransitionState(ConnectionState.Closed);
-                    throw;
-                }
-
-                Log.TracePacketSent(this, packet);
-
-                return null;
+            if (packet is Packet fullPacket) {
+                fullPacket.Sent = DateTimeOffset.Now;
             }
 
-            // Wait for the ack
-            var tcs = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if(packet is IAck packetAsAck && packetAsAck.PacketId <= 0) {
+                throw new InvalidOperationException($"Ack doesn't have response ID.");
+            }
+
+            ulong packetId;
+
+            lock (_idLocker)
+                packetId = _nextPacketId++;
+
+            TaskCompletionSource<Packet> ackCompletion = null;
 
             try {
-                _awaitingAck.AddOrUpdate(packetId, tcs, (_, __) => tcs);
+                if (packet.Flags.HasFlag(PacketFlag.AckRequired)) {
+                    ackCompletion = new TaskCompletionSource<Packet>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _awaitingAck.AddOrUpdate(packetId, ackCompletion, (_, __) => ackCompletion);
+                }
 
                 Log.TracePacketSending(this, packet);
 
+                if (packet.Sent == null)
+                    throw new InvalidOperationException($"{this}: Sent is null");
+
+                byte[] packetData = null;
+
+                if (packet is Packet regularPacket) {
+                    packetData = SerializedPacket.Create(regularPacket, Serializer)
+                        ?? throw new InvalidOperationException($"{this}: Packet serialization returned null");
+                } else if (packet is SerializedPacket serializedPacket) {
+                    packetData = serializedPacket.Data;
+                } else throw new InvalidOperationException($"{this}: Packet of type {packet.GetType().Name} is not supported.");
+
                 try {
-                    await SendImpl(packet, cancellationToken);
+                    await SendImpl(packetId, packetData, cancellationToken);
                 } catch (DisconnectedException ex) {
                     if(ex.InnerException != null) {
                         Log.Warn($"Disconnected sending packet {packet}: {ex.InnerException}");
@@ -393,33 +422,37 @@ namespace Octgn.Communication
                 // Don't log this unless the send actually happens
                 Log.TracePacketSent(this, packet);
 
-                // Combine cancellations
-                // Then create a  monitor task
+                if (ackCompletion == null) {
+                    // No ack required
+                    return null;
+                } else {
+                    // Wait for the ack
+                    using (var combinedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ClosedCancellationToken)) {
+                        var cancellationTask = Task.Delay(-1, combinedCancellationTokenSource.Token);
 
-                using (var combinedCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ClosedCancellationToken)) {
-                    var cancellationTask = Task.Delay(-1, combinedCancellationTokenSource.Token);
+                        Log.TraceWaitingForAck(this, packetId);
 
-                    Log.TraceWaitingForAck(this, packetId);
+                        var result = await Task.WhenAny(ackCompletion.Task, Task.Delay(WaitForResponseTimeout), cancellationTask);
+                        if (result == ackCompletion.Task) {
+                            var ack = (IAck)ackCompletion.Task.Result;
+                            Log.TraceAckReceived(this, ack);
+                            return ack;
+                        }
 
-                    var result = await Task.WhenAny(tcs.Task, Task.Delay(WaitForResponseTimeout), cancellationTask);
-                    if (result == tcs.Task) {
-                        var ack = (IAck)tcs.Task.Result;
-                        Log.TraceAckReceived(this, ack);
-                        return ack;
+                        if (result == cancellationTask) {
+                            if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
+                            if (ClosedCancellationToken.IsCancellationRequested) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
+                        }
+
+                        throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
                     }
-
-                    if (result == cancellationTask) {
-                        if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
-                        if (ClosedCancellationToken.IsCancellationRequested) throw new NotConnectedException($"{this}: Could not send {packet}, the connection is closed.");
-                    }
-
-                    throw new TimeoutException($"{this}: Timed out waiting for Ack from {packet}");
                 }
             } finally {
-                // Just in case it wasn't set.
-                tcs.TrySetCanceled();
+                if (ackCompletion != null) {
+                    ackCompletion.TrySetCanceled();
 
-                _awaitingAck.TryRemove(packetId, out tcs);
+                    _awaitingAck.TryRemove(packetId, out _);
+                }
             }
         }
 

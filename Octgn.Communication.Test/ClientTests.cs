@@ -17,7 +17,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 var expectedException = new NotImplementedException();
@@ -44,7 +44,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var client = CreateClient(port, "a")) {
@@ -67,7 +67,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var client = CreateClient(port, "userA")) {
@@ -76,9 +76,9 @@ namespace Octgn.Communication.Test
                     var tcs = new TaskCompletionSource<RequestPacket>();
 
                     client.RequestReceived += (_, args) => {
-                        args.Response = new ResponsePacket(args.Request);
-                        tcs.SetResult(args.Request);
-                        return Task.FromResult(args.Response);
+                        args.IsHandled = true;
+                        tcs.SetResult(null);
+                        return Task.FromResult<object>(null);
                     };
 
                     var request = new RequestPacket("test");
@@ -89,8 +89,6 @@ namespace Octgn.Communication.Test
                     var completedTask = await Task.WhenAny(tcs.Task, delayTask);
 
                     if (completedTask == delayTask) throw new TimeoutException();
-
-                    Assert.NotNull(tcs.Task.Result);
                 }
             }
         }

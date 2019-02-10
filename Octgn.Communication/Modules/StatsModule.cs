@@ -157,9 +157,10 @@ namespace Octgn.Communication.Modules
             return nameof(Stats) + ":" + name;
         }
 
-        public override byte PacketTypeId => 7;
+        public override byte PacketType => 7;
 
-        public override bool RequiresAck => false;
+        public override PacketFlag Flags => PacketFlag.None;
+
 
         protected override string PacketStringData => $"INFO: UOC={OnlineUserCount}";
     }

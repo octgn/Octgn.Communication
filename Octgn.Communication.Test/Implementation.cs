@@ -18,7 +18,7 @@ namespace Octgn.Communication.Test
         public async Task TcpLayerOperates() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var client = CreateClient(port, "user")) {
@@ -33,7 +33,7 @@ namespace Octgn.Communication.Test
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Attach(new PingModule());
                 server.Initialize();
 
@@ -89,7 +89,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Attach(new PingModule());
                 server.Initialize();
 
@@ -109,7 +109,7 @@ namespace Octgn.Communication.Test
         public async Task CanSendTwoRequests() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Attach(new PingModule());
                 server.Initialize();
 
@@ -128,7 +128,7 @@ namespace Octgn.Communication.Test
         public async Task UnhandledPacketFailsProperly() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 // Don't attach the ping module, that way the server won't know how to handle the ping request.
                 //server.Attach(new PingModule());
 
@@ -157,7 +157,7 @@ namespace Octgn.Communication.Test
         public async Task NewUser_GetsAddedToConnectionProvider() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var clientA = CreateClient(port, "clientA")) {
@@ -176,7 +176,7 @@ namespace Octgn.Communication.Test
         public async Task SendUserMessage() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var clientA = CreateClient(port, "clientA"))
@@ -188,15 +188,15 @@ namespace Octgn.Communication.Test
                         string messageBody = null;
 
                         clientB.RequestReceived += (_, args) => {
-                            if (!(args.Request is Message message)) return Task.FromResult<ResponsePacket>(null);
+                            if (!(args.Request is Message message)) return Task.FromResult<object>(null);
 
                             messageBody = message.Body;
 
-                            args.Response = new ResponsePacket(args.Request);
+                            args.IsHandled = true;
 
                             eveMessageReceived.Set();
 
-                            return Task.FromResult<ResponsePacket>(null);
+                            return Task.FromResult<object>(null);
                         };
 
                         var result = await clientA.SendMessage(clientB.User.Id, "asdf");
@@ -216,7 +216,7 @@ namespace Octgn.Communication.Test
         public async Task SendMessageToOfflineUser_ThrowsException() {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var clientA = CreateClient(port, "clientA")) {
@@ -238,7 +238,7 @@ namespace Octgn.Communication.Test
 
             ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(60);
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var clientA = CreateClient(port, "clientA"))
@@ -250,7 +250,7 @@ namespace Octgn.Communication.Test
                         string messageBody = null;
 
                         clientB.RequestReceived += (_, args) => {
-                            if (!(args.Request is Message message)) return Task.FromResult<ResponsePacket>(null);
+                            if (!(args.Request is Message message)) return Task.FromResult<object>(null);
 
                             messageBody = message.Body;
 
@@ -258,7 +258,7 @@ namespace Octgn.Communication.Test
                             //args.Response = new ResponsePacket(args.Request);
 
                             eveMessageReceived.Set();
-                            return Task.FromResult<ResponsePacket>(null);
+                            return Task.FromResult<object>(null);
                         };
 
                         var sendTask = clientA.SendMessage(clientB.User.Id, "asdf");
@@ -291,7 +291,7 @@ namespace Octgn.Communication.Test
                     ErrorCode = "TestError"
                 }));
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), handshaker), new InMemoryConnectionProvider())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new XmlSerializer(), handshaker), new InMemoryConnectionProvider(), new XmlSerializer())) {
                 var serverModule = new ServerModuleEvents();
                 server.Attach(serverModule);
                 server.Initialize();

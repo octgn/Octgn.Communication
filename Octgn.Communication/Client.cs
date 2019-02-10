@@ -13,13 +13,21 @@ namespace Octgn.Communication
 
         public User User => Connection?.User;
         public IConnection Connection { get; private set; }
+        public ISerializer Serializer { get; }
 
         public bool IsConnected => Status == ConnectionStatus.Connected;
 
         private readonly IClientConnectionProvider _clientConnectionProvider;
 
-        public Client(IClientConnectionProvider clientConnectionProvider) {
+        public Client(IClientConnectionProvider clientConnectionProvider, ISerializer serializer) {
             _clientConnectionProvider = clientConnectionProvider ?? throw new ArgumentNullException(nameof(clientConnectionProvider));
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        }
+
+        public override void Initialize() {
+            _clientConnectionProvider.Initialize(this);
+
+            base.Initialize();
         }
 
         public ConnectionStatus Status {
@@ -99,9 +107,6 @@ namespace Octgn.Communication
                 Status = ConnectionStatus.Connecting;
 
                 Connection = _clientConnectionProvider.Create(_host);
-                if (Connection is ConnectionBase connectionBase) {
-                    connectionBase.Initialize(this);
-                }
 
                 await Connection.Connect(cancellationToken);
                 Connection.ConnectionStateChanged += Connection_ConnectionStateChanged;
@@ -206,7 +211,7 @@ namespace Octgn.Communication
         public event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
 
-        private async Task<ResponsePacket> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
+        private async Task<object> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
@@ -221,8 +226,7 @@ namespace Octgn.Communication
                     var result = await module.Process(args.Request);
                     if (result.WasProcessed) {
                         args.IsHandled = true;
-                        args.Response = (result.Result is ResponsePacket resultResponse)
-                            ? resultResponse : new ResponsePacket(args.Request, result.Result);
+                        args.Response = result.Result;
 
                         break;
                     }
@@ -283,5 +287,6 @@ namespace Octgn.Communication
     public interface IClientConnectionProvider
     {
         IConnection Create(string host);
+        void Initialize(Client client);
     }
 }

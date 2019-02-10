@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using NUnit.Framework;
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
@@ -18,35 +17,22 @@ namespace Octgn.Communication.Test
         private void Serialization(ISerializer serializer) {
             const string test = "test";
             var original = new RequestPacket(test) {
-                Id = 1
+                Origin = new User("1", "name"),
+                Destination = "destination",
+                Sent = DateTimeOffset.Now
             };
 
-            var bytes = Packet.Serialize(original, serializer);
+            var bytes = SerializedPacket.Create(original, serializer);
 
-            var unserialized = (RequestPacket)Packet.Deserialize(bytes.ToList(), serializer, out int bytesConsumed);
+            var sp = SerializedPacket.Read(bytes);
 
-            Assert.AreEqual(bytes.Length, bytesConsumed);
+            var unserialized = sp.DeserializePacket(serializer);
 
-            Assert.AreEqual(original.Id, unserialized.Id);
             Assert.AreEqual(original.Sent, unserialized.Sent);
-            Assert.AreEqual(original.PacketTypeId, unserialized.PacketTypeId);
-        }
-
-        [TestCase]
-        public void XML_Serialization_ThrowsException_WhenNoIdPresent() => Serialization_ThrowsException_WhenNoIdPresent(new XmlSerializer());
-
-        [TestCase]
-        public void JSON_Serialization_ThrowsException_WhenNoIdPresent() => Serialization_ThrowsException_WhenNoIdPresent(new JsonSerializer());
-
-        private void Serialization_ThrowsException_WhenNoIdPresent(ISerializer serializer) {
-            var packet = new RequestPacket();
-
-            try {
-                Packet.Serialize(packet, serializer);
-                Assert.Fail();
-            } catch (ArgumentException ex) {
-                Assert.AreEqual(nameof(packet), ex.ParamName);
-            }
+            Assert.AreEqual(original.PacketType, unserialized.PacketType);
+            Assert.AreEqual(original.Origin, unserialized.Origin);
+            Assert.AreEqual(original.Destination, unserialized.Destination);
+            Assert.AreEqual(original.Flags, unserialized.Flags);
         }
 
         [TestCase]
@@ -57,23 +43,23 @@ namespace Octgn.Communication.Test
 
         private void Packet_ThrowsException_IfPacketIsntRegistered(ISerializer serializer) {
             var packet = new UnregisteredPacket {
-                Id = 1
             };
 
             try {
-                Packet.Serialize(packet, serializer);
+                SerializedPacket.Create(packet, serializer);
                 Assert.Fail("Exception should have been thrown");
             } catch (UnregisteredPacketException) {
             }
 
             Packet.RegisterPacketType<UnregisteredPacket>();
 
-            var serialized = Packet.Serialize(packet, serializer);
+            var serialized = SerializedPacket.Create(packet, serializer);
 
             Packet.UnregisterPacketType<UnregisteredPacket>();
 
             try {
-                Packet.Deserialize(serialized.ToList(), serializer, out _);
+                var ser = SerializedPacket.Read(serialized);
+                ser.DeserializePacket(serializer);
                 Assert.Fail("Exception should have been thrown");
             } catch (UnregisteredPacketException) {
                 Assert.Pass();
@@ -82,11 +68,11 @@ namespace Octgn.Communication.Test
 
         public class UnregisteredPacket : Packet
         {
-            public override bool RequiresAck => true;
+            public override PacketFlag Flags => PacketFlag.AckRequired;
 
             protected override string PacketStringData => "TEST-UNREG";
 
-            public override byte PacketTypeId => 200;
+            public override byte PacketType => 200;
         }
     }
 }

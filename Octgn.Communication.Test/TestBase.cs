@@ -3,6 +3,7 @@ using NUnit.Framework;
 using System.Threading;
 using System.Threading.Tasks;
 using Octgn.Communication.Serializers;
+using System.Collections.Generic;
 
 namespace Octgn.Communication.Test
 {
@@ -34,53 +35,55 @@ namespace Octgn.Communication.Test
             while (InMemoryLogger.LogMessages.Count > 0) {
                 InMemoryLogger.LogMessages.TryDequeue(out var result);
             }
-            //Signal.OnException += Signal_OnException;
+            Signal.OnException += Signal_OnException;
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
         }
 
-        private ILogger SignalLog = LoggerFactory.Create("SIGNAL");
+        private List<ExceptionEventArgs> SignalErrors = new List<ExceptionEventArgs>();
 
         private void Signal_OnException(object sender, ExceptionEventArgs args) {
-            SignalLog.Error(args.Message);
+            SignalErrors.Add(args);
         }
 
         [TearDown]
         public void TearDown() {
-            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Test complete.");
+            try {
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Test complete.");
 
-            //Signal.OnException -= Signal_OnException;
+                Signal.OnException -= Signal_OnException;
 
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
-            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Cleaned up GC");
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Cleaned up GC");
 
-            var exceptionCount = Signal.Exceptions.Count;
+                var exceptionCount = SignalErrors.Count;
 
-            if (Signal.Exceptions.Count > 0) {
-                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: EXCEPTIONS =============================");
-                while (Signal.Exceptions.Count > 0) {
-                    if (Signal.Exceptions.TryDequeue(out var result)) {
-                        Console.WriteLine(result.ToString());
+                if (exceptionCount > 0) {
+                    Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: EXCEPTIONS =============================");
+                    foreach (var error in SignalErrors) {
+                        Console.WriteLine(error.ToString());
                     }
                 }
-            }
-            if (InMemoryLogger.LogMessages.Count > 0) {
-                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: LOGS =============================");
-                while (InMemoryLogger.LogMessages.Count > 0) {
-                    if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
-                        Console.WriteLine(result);
+                if (InMemoryLogger.LogMessages.Count > 0) {
+                    Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: LOGS =============================");
+                    while (InMemoryLogger.LogMessages.Count > 0) {
+                        if (InMemoryLogger.LogMessages.TryDequeue(out var result)) {
+                            Console.WriteLine(result);
+                        }
                     }
                 }
+
+                SignalErrors.Clear();
+
+                Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
+            } finally {
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Signaling test complete.");
+
+                _currentTest.SetResult(null);
+
+                Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Very very end of test. Good bye.");
             }
-
-            Assert.Zero(exceptionCount, "Unhandled exceptions found in Signal");
-
-            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Signaling test complete.");
-
-            _currentTest.SetResult(null);
-
-            Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Very very end of test. Good bye.");
         }
 
         [OneTimeTearDown]
@@ -94,7 +97,7 @@ namespace Octgn.Communication.Test
         public static int NextPort => Interlocked.Increment(ref _currentPort);
 
         protected Client CreateClient(int port, string userId) {
-            return new Client(CreateClientConnectionProvider(port, userId));
+            return new Client(CreateClientConnectionProvider(port, userId), new XmlSerializer());
         }
 
         protected IClientConnectionProvider CreateClientConnectionProvider(int port, string userId) {

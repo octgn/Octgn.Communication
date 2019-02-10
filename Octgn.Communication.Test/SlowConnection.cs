@@ -28,13 +28,26 @@ namespace Octgn.Communication.Test
             remove { _connection.RequestReceived -= value; }
         }
 
+        public event PacketReceived PacketReceived {
+            add { _connection.PacketReceived += value; }
+            remove { _connection.PacketReceived -= value; }
+        }
+
         public SlowConnection(IConnection connection) {
             _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         }
 
-        public async Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
+        public Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
+            return _connection.Request(packet, cancellationToken);
+        }
+
+        public Task Respond(ulong requestPacketId, ResponsePacket response, CancellationToken cancellationToken = default(CancellationToken)) {
+            return _connection.Respond(requestPacketId, response, cancellationToken);
+        }
+
+        public async Task<IAck> Send(IPacket packet, CancellationToken cancellationToken = default(CancellationToken)) {
             await Task.Delay(2000);
-            return await _connection.Request(packet, cancellationToken);
+            return await _connection.Send(packet, cancellationToken);
         }
 
         public bool Equals(IConnection other) {

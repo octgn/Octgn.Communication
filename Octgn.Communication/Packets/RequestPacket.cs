@@ -31,12 +31,13 @@ namespace Octgn.Communication.Packets
             : this(request.Name, request.Properties) {
             this.Origin = request.Origin;
             this.Destination = request.Destination;
-            this.PacketTypeId = request.PacketTypeId;
+            this.PacketType = request.PacketType;
         }
 
-        public override byte PacketTypeId { get; } = 3;
+        public override byte PacketType { get; } = 3;
 
-        public override bool RequiresAck => true;
+        public override PacketFlag Flags => PacketFlag.AckRequired;
+
 
         protected override string PacketStringData => $"REQ+{Name}";
 

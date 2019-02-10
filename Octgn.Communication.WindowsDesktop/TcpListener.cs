@@ -24,6 +24,12 @@ namespace Octgn.Communication
             _listener = new System.Net.Sockets.TcpListener(endpoint);
         }
 
+        protected Server Server { get; private set; }
+
+        public void Initialize(Server server) {
+            Server = server ?? throw new ArgumentNullException(nameof(server));
+        }
+
         public bool IsEnabled {
             get => _isEnabled;
             set {
@@ -68,7 +74,7 @@ namespace Octgn.Communication
             }
         }
 
-        private IConnection CreateConnection(TcpClient client) => new TcpConnection(client, _serializer, _handshaker);
+        private IConnection CreateConnection(TcpClient client) => new TcpConnection(client, _serializer, _handshaker, Server);
 
         public event ConnectionCreated ConnectionCreated;
 

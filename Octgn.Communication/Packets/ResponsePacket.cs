@@ -16,18 +16,14 @@ namespace Octgn.Communication.Packets
         public ulong PacketId { get; set; }
         public DateTimeOffset PacketReceived { get; set; }
 
-        public ResponsePacket() : base() { }
+        public ResponsePacket() { }
 
-        public ResponsePacket(RequestPacket req) : base() {
-            RequestPacketId = req?.Id ?? throw new ArgumentNullException(nameof(req));
+        public ResponsePacket(object response) : base(response) {
         }
 
-        public ResponsePacket(RequestPacket req, object response) : base(response) {
-            RequestPacketId = req?.Id ?? throw new ArgumentNullException(nameof(req));
-        }
+        public override byte PacketType => 4;
+        public override PacketFlag Flags => PacketFlag.None;
 
-        public override byte PacketTypeId => 4;
-        public override bool RequiresAck => false;
 
         protected override string PacketStringData {
             get {

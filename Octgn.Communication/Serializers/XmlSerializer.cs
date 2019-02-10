@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
+using System.Xml;
 
 namespace Octgn.Communication.Serializers
 {
@@ -22,9 +23,16 @@ namespace Octgn.Communication.Serializers
                 typeof(UserSubscription)
             };
 
-            _serializers.Add(typeof(List<NameValuePair>), new DataContractSerializer(typeof(List<NameValuePair>)));
-            _serializers.Add(typeof(HandshakeResult), new DataContractSerializer(typeof(HandshakeResult)));
-            _serializers.Add(typeof(ErrorResponseData), new DataContractSerializer(typeof(ErrorResponseData)));
+
+            var settings = new DataContractSerializerSettings();
+            settings.DataContractResolver = new XmlDataContractResolver(this);
+
+            _serializers.Add(typeof(List<NameValuePair>), new DataContractSerializer(typeof(List<NameValuePair>), settings));
+            _serializers.Add(typeof(HandshakeResult), new DataContractSerializer(typeof(HandshakeResult), settings));
+            _serializers.Add(typeof(ErrorResponseData), new DataContractSerializer(typeof(ErrorResponseData), settings));
+            _serializers.Add(typeof(DateTime), new DataContractSerializer(typeof(DateTime), settings));
+            _serializers.Add(typeof(string), new DataContractSerializer(typeof(string), settings));
+            _serializers.Add(typeof(UserSubscription), new DataContractSerializer(typeof(UserSubscription), settings));
         }
 
         public XmlSerializer(params Type[] types) {
@@ -53,6 +61,29 @@ namespace Octgn.Communication.Serializers
                 serializer.WriteObject(ms, o);
                 return ms.ToArray();
             }
+        }
+    }
+
+    public class XmlDataContractResolver : DataContractResolver
+    {
+        private readonly XmlSerializer _serializer;
+
+        public XmlDataContractResolver(XmlSerializer serializer) {
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        }
+
+        public override Type ResolveName(string typeName, string typeNamespace, Type declaredType, DataContractResolver knownTypeResolver) {
+            var result = knownTypeResolver.ResolveName(typeName, typeNamespace, declaredType, knownTypeResolver);
+            if (result != null) return result;
+
+            return _serializer.IncludedTypes.FirstOrDefault(x => x.Name == typeName);
+        }
+
+        public override bool TryResolveType(Type type, Type declaredType, DataContractResolver knownTypeResolver, out XmlDictionaryString typeName, out XmlDictionaryString typeNamespace) {
+            if (knownTypeResolver.TryResolveType(type, declaredType, knownTypeResolver, out typeName, out typeNamespace))
+                return true;
+
+            throw new NotImplementedException();
         }
     }
 }

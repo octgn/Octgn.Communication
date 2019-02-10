@@ -1,7 +1,8 @@
-﻿using System;
+﻿using Octgn.Communication;
+using System;
 using System.Net;
 
-namespace Octgn.Communication.Test
+namespace Load
 {
     public class TestClientConnectionProvider : IClientConnectionProvider
     {
@@ -15,17 +16,18 @@ namespace Octgn.Communication.Test
             _handshaker = handshaker;
         }
 
+        private Client _client;
+        public void Initialize(Client client) {
+            _client = client ?? throw new ArgumentNullException(nameof(client));
+        }
+
         public IPEndPoint GetEndpoint() {
             return new IPEndPoint(IPAddress.Loopback, Port);
         }
 
         public IConnection Create(string host) {
             return new TcpConnection(GetEndpoint().ToString(), _serializer, _handshaker, _client);
-        }
-
-        private Client _client;
-        public void Initialize(Client client) {
-            _client = client ?? throw new ArgumentNullException(nameof(client));
+            throw new NotImplementedException();
         }
     }
 }

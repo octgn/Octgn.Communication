@@ -10,7 +10,7 @@ namespace Octgn.Communication.Packets
             set => this[nameof(HandshakeType)] = value;
         }
 
-        public override byte PacketTypeId => 5;
+        public override byte PacketType => 5;
 
         public HandshakeRequestPacket() {
 

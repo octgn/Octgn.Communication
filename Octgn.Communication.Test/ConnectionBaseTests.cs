@@ -1,6 +1,7 @@
 ﻿using FakeItEasy;
 using NUnit.Framework;
 using Octgn.Communication.Packets;
+using Octgn.Communication.Serializers;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -12,37 +13,32 @@ namespace Octgn.Communication.Test
     public class ConnectionBaseTests : TestBase {
         [TestCase]
         public void Equals() {
-            using (var conA = new InMemoryConnection(new FakeHandshaker("conA")))
-            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"))) {
+            var serializer = new XmlSerializer();
+            using (var clientA = A.Fake<Client>())
+            using (var clientB = A.Fake<Client>())
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"), serializer, clientA))
+            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"), serializer, clientB)) {
                 Assert.False(conA.Equals(conB));
                 Assert.True(conA.Equals(conA));
             }
         }
 
         [TestCase]
-        public void Initialize_SetsServer() {
-            using(var server = new Server(A.Fake<IConnectionListener>(), A.Fake<IConnectionProvider>()))
-            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"))) {
-                conA.Initialize(server);
-
-                Assert.AreEqual(conA.Server, server);
-            }
-        }
-
-        [TestCase]
         public void Initialize_SetsClient() {
+            var serializer = new XmlSerializer();
             using(var client = A.Fake<Client>())
-            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"))) {
-                conA.Initialize(client);
-
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"), serializer, client)) {
                 Assert.AreEqual(conA.Client, client);
             }
         }
 
         [TestCase]
         public async Task InMemoryTest() {
-            using (var conA = new InMemoryConnection(new FakeHandshaker("conA")))
-            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"))) {
+            var serializer = new XmlSerializer();
+            using (var clientA = A.Fake<Client>())
+            using (var clientB = A.Fake<Client>())
+            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"), serializer, clientA))
+            using (var conB = new InMemoryConnection(new FakeHandshaker("conB"), serializer, clientB)) {
                 conA.Attach(conB);
 
                 var conACounter = 0;
@@ -50,12 +46,14 @@ namespace Octgn.Communication.Test
 
                 conA.RequestReceived += (_, args) => {
                     conACounter++;
-                    return Task.FromResult(new ResponsePacket(args.Request));
+                    args.IsHandled = true;
+                    return Task.FromResult<object>(null);
                 };
 
                 conB.RequestReceived += (_, args) => {
                     conBCounter++;
-                    return Task.FromResult(new ResponsePacket(args.Request));
+                    args.IsHandled = true;
+                    return Task.FromResult<object>(null);
                 };
 
                 await conA.Connect();
@@ -80,7 +78,7 @@ namespace Octgn.Communication.Test
     }
 
     public class InMemoryConnection : ConnectionBase {
-        public InMemoryConnection(IHandshaker handshaker) : base("inmemory", handshaker) {
+        public InMemoryConnection(IHandshaker handshaker, ISerializer serializer, Client client) : base("inmemory", handshaker, serializer, client) {
         }
 
         private InMemoryConnection _attachedConnection;
@@ -100,8 +98,8 @@ namespace Octgn.Communication.Test
             return Task.CompletedTask;
         }
 
-        protected override Task SendImpl(Packet packet, CancellationToken cancellationToken) {
-            return _attachedConnection.ProcessReceivedPacket(packet);
+        protected override Task SendImpl(ulong packetId, byte[] data, CancellationToken cancellationToken) {
+            return _attachedConnection.ProcessReceivedData(packetId, data, Serializer);
         }
 
         public override IConnection Clone() {

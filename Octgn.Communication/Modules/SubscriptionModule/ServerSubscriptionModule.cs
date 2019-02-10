@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System.Linq;
+using Octgn.Communication.Serializers;
 
 namespace Octgn.Communication.Modules.SubscriptionModule
 {
@@ -27,6 +28,10 @@ namespace Octgn.Communication.Modules.SubscriptionModule
             requestHandler.Register(nameof(IClientCalls.UpdateUserSubscription), OnUpdateUserSubscription);
             requestHandler.Register(nameof(IClientCalls.RemoveUserSubscription), OnRemoveUserSubscription);
             requestHandler.Register(nameof(IClientCalls.AddUserSubscription), OnAddUserSubscription);
+
+            if(server.Serializer is XmlSerializer xmlSerializer) {
+                xmlSerializer.Include(typeof(UserSubscription));
+            }
 
             _server.ConnectionProvider.ConnectionStateChanged += ConnectionProvider_ConnectionStateChanged;
         }

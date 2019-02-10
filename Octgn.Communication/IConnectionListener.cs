@@ -7,6 +7,8 @@ namespace Octgn.Communication
         ISerializer Serializer { get; }
         bool IsEnabled { get; set; }
         event ConnectionCreated ConnectionCreated;
+
+        void Initialize(Server server);
     }
 
     public delegate void ConnectionCreated(object sender, ConnectionCreatedEventArgs args);

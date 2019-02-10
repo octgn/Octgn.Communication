@@ -11,12 +11,17 @@ namespace Octgn.Communication
 #pragma warning disable RCS1159 // Use EventHandler<T>.
         event RequestReceived RequestReceived;
 #pragma warning restore RCS1159 // Use EventHandler<T>.
+#pragma warning disable RCS1159 // Use EventHandler<T>.
+        event PacketReceived PacketReceived;
+#pragma warning restore RCS1159 // Use EventHandler<T>.
         string ConnectionId { get; }
         string RemoteAddress { get; }
         ConnectionState State { get; }
         User User { get; }
         Task Connect(CancellationToken cancellationToken = default(CancellationToken));
         Task<ResponsePacket> Request(RequestPacket packet, CancellationToken cancellationToken = default(CancellationToken));
+        Task Respond(ulong requestPacketId, ResponsePacket response, CancellationToken cancellationToken = default(CancellationToken));
+        Task<IAck> Send(IPacket packet, CancellationToken cancellationToken = default(CancellationToken));
         /// <summary>
         /// Creates a new <see cref="IConnection"/> with the same <see cref="RemoteAddress"/>.
         /// and a <see cref="State"/> of <see cref="ConnectionState.Created"/>.
@@ -51,13 +56,26 @@ namespace Octgn.Communication
         }
     }
 
-    public delegate Task<ResponsePacket> RequestReceived(object sender, RequestReceivedEventArgs args);
+    public delegate Task<object> RequestReceived(object sender, RequestReceivedEventArgs args);
 
     public class RequestReceivedEventArgs : EventArgs
     {
         public RequestContext Context { get; set; }
         public bool IsHandled { get; set; }
         public RequestPacket Request { get; set; }
-        public ResponsePacket Response { get; set; }
+        public object Response { get; set; }
+    }
+
+    public delegate Task PacketReceived(object sender, PacketReceivedEventArgs args);
+
+    public class PacketReceivedEventArgs : EventArgs
+    {
+        public bool IsHandled { get; set; }
+
+        public IConnection Connection { get; set; }
+        
+        public SerializedPacket Packet { get; set; }
+
+        public ulong PacketId { get; set; }
     }
 }

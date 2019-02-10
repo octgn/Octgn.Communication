@@ -20,5 +20,9 @@
         {
             _listener = listener;
         }
+
+        public void Initialize(Server server) {
+            _listener.Initialize(server);
+        }
     }
 }

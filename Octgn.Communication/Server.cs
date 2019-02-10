@@ -14,10 +14,12 @@ namespace Octgn.Communication
 
         public IConnectionListener Listener { get; }
         public IConnectionProvider ConnectionProvider { get; }
+        public ISerializer Serializer { get; }
 
-        public Server(IConnectionListener listener, IConnectionProvider connectionProvider) {
+        public Server(IConnectionListener listener, IConnectionProvider connectionProvider, ISerializer serializer) {
             Listener = listener ?? throw new ArgumentNullException(nameof(listener));
             ConnectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
+            Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 
             Listener.ConnectionCreated += Listener_ConnectionCreated;
 
@@ -26,6 +28,10 @@ namespace Octgn.Communication
         }
 
         public override void Initialize() {
+            Listener.Initialize(this);
+
+            ConnectionProvider.Initialize(this);
+
             Listener.IsEnabled = true;
 
             base.Initialize();
@@ -35,9 +41,7 @@ namespace Octgn.Communication
             try {
                 Log.Info($"Connection Created {args.Connection.ConnectionId}");
                 args.Connection.RequestReceived += Connection_RequestReceived;
-                if (args.Connection is ConnectionBase connectionBase) {
-                    connectionBase.Initialize(this);
-                }
+                args.Connection.PacketReceived += Connection_PacketReceived;
                 ConnectionProvider.AddConnection(args.Connection);
             } catch (Exception ex) {
                 Signal.Exception(ex);
@@ -96,21 +100,74 @@ namespace Octgn.Communication
 
             Log.Info($"Sent {request} to {sendCount} clients");
 
-            if (receiverResponse == null && request.RequiresAck)
+            if (receiverResponse == null && request.Flags.HasFlag(PacketFlag.AckRequired))
                 throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {request} routed to {destination}, but they didn't handle the request.", false);
 
             return receiverResponse;
         }
 
-        public int RequestCount { get => _requestCount; }
-        private int _requestCount;
-
-        private async Task<ResponsePacket> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
+        private async Task Connection_PacketReceived(object sender, PacketReceivedEventArgs args) {
             if (sender == null) {
                 throw new ArgumentNullException(nameof(sender));
             }
 
-            Interlocked.Increment(ref _requestCount);
+            Interlocked.Increment(ref _packetCount);
+
+            if (typeof(RequestPacket).IsAssignableFrom(args.Packet.GetPacketType())) {
+                if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
+                    var sendCount = 0;
+
+                    var connectionQuery = ConnectionProvider.GetConnections()
+                        .Where(con => con.State == ConnectionState.Connected)
+                        .Where(con => con.User.Id.Equals(args.Packet.Destination, StringComparison.InvariantCultureIgnoreCase));
+
+                    var connections = connectionQuery.ToArray();
+
+                    Log.Info($"Sending {args.Packet} to {connections.Length} connections: {string.Join(",", connections.Take(10))}");
+
+                    try {
+
+                        foreach (var connection in connections) {
+                            try {
+                                var response = await connection.Send(args.Packet);
+
+                                if (response == null && args.Packet.Flags.HasFlag(PacketFlag.AckRequired)) {
+                                    throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} routed to {args.Packet.Destination}, but they didn't handle the request.", false);
+                                }
+
+                                var responsePacket = (ResponsePacket)response;
+
+                                await args.Connection.Respond(args.PacketId, responsePacket);
+
+                                sendCount++;
+                            } catch (Exception ex) when (!(ex is ErrorResponseException)) {
+                                Log.Warn(ex);
+                            }
+                        }
+
+                        if (sendCount < 1) {
+                            Log.Warn($"Unable to deliver packet to user {args.Packet.Destination}, they are offline or the destination is invalid.");
+                            throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver packet to user {args.Packet.Destination}, they are offline of the destination is invalid.", false);
+                        }
+                    } catch (ErrorResponseException ex) {
+                        var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
+                        await args.Connection.Respond(args.PacketId, new ResponsePacket(err));
+                    }
+
+                    Log.Info($"Sent {args.Packet} to {sendCount} clients");
+
+                    args.IsHandled = true;
+                }
+            }
+        }
+
+        public long PacketCount { get => _packetCount; }
+        private long _packetCount;
+
+        private async Task<object> Connection_RequestReceived(object sender, RequestReceivedEventArgs args) {
+            if (sender == null) {
+                throw new ArgumentNullException(nameof(sender));
+            }
 
             args.Context.Server = this;
 
@@ -118,29 +175,23 @@ namespace Octgn.Communication
             try {
                 args.Request.Origin = args.Context.Connection.User;
 
-                if (!string.IsNullOrWhiteSpace(args.Request.Destination)) {
-                    args.Response = await Request(args.Request, args.Request.Destination);
-                    args.Response.RequestPacketId = (ulong)args.Request.Id;
-                } else {
-                    foreach (var module in GetModules()) {
-                        var result = await module.Process(args.Request);
-                        if (result.WasProcessed) {
-                            args.IsHandled = true;
-                            args.Response = (result.Result is ResponsePacket resultResponse)
-                                ? resultResponse : new ResponsePacket(args.Request, result.Result);
+                foreach (var module in GetModules()) {
+                    var result = await module.Process(args.Request);
+                    if (result.WasProcessed) {
+                        args.IsHandled = true;
+                        args.Response = result.Result;
 
-                            break;
-                        }
+                        break;
                     }
                 }
             } catch (ErrorResponseException ex) {
                 var err = new ErrorResponseData(ex.Code, ex.Message, ex.IsCritical);
-                args.Response = new ResponsePacket(args.Request, err);
+                args.Response = err;
             } catch (Exception ex) {
                 Signal.Exception(ex);
 
                 var err = new ErrorResponseData(ErrorResponseCodes.UnhandledServerError, "UnhandledServerError", true);
-                args.Response = new ResponsePacket(args.Request, err);
+                args.Response = err;
             }
             return args.Response;
         }

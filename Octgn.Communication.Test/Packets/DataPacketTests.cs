@@ -66,11 +66,7 @@ namespace Octgn.Communication.Test.Packets
         private void Serializes_ErrorResponseData(ISerializer serializer) {
             var error = new ErrorResponseData(ErrorResponseCodes.UnauthorizedRequest, "crap", true);
 
-            var req = new RequestPacket("hi") {
-                Id = 1
-            };
-
-            var pack = new ResponsePacket(req, error);
+            var pack = new ResponsePacket(error);
 
             using (var ms = new MemoryStream())
             using (var writer = new BinaryWriter(ms))
@@ -119,11 +115,11 @@ namespace Octgn.Communication.Test.Packets
 
             }
 
-            public override bool RequiresAck => true;
+            public override PacketFlag Flags => PacketFlag.AckRequired;
 
             protected override string PacketStringData => "TEST";
 
-            public override byte PacketTypeId => 7;
+            public override byte PacketType => 7;
         }
     }
 }

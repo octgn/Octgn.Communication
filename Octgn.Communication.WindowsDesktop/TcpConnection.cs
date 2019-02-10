@@ -1,5 +1,4 @@
-﻿using Octgn.Communication.TransportSDK;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,8 +19,6 @@ namespace Octgn.Communication
         /// You must close the NetworkStream when you are through sending and receiving data. Closing TcpClient does not release the NetworkStream. -- https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.tcpclient.getstream?f1url=https%3A%2F%2Fmsdn.microsoft.com%2Fquery%2Fdev15.query%3FappId%3DDev15IDEF1%26l%3DEN-US%26k%3Dk(System.Net.Sockets.TcpClient.GetStream);k(TargetFrameworkMoniker-.NETFramework,Version%3Dv4.7);k(DevLang-csharp)%26rd%3Dtrue&view=netframework-4.7.1
         /// </summary>
         private NetworkStream _clientStream;
-        private readonly PacketBuilder _packetBuilder;
-        private readonly ISerializer _serializer;
 
         internal bool IsListenerConnection { get; }
 
@@ -31,31 +28,30 @@ namespace Octgn.Communication
         /// <param name="client"></param>
         /// <param name="serializer"></param>
         /// <param name="handshaker"></param>
-        public TcpConnection(TcpClient client, ISerializer serializer, IHandshaker handshaker)
-            : base(client.Client.RemoteEndPoint.ToString(), handshaker) {
+        public TcpConnection(TcpClient client, ISerializer serializer, IHandshaker handshaker, Server server)
+            : base(client.Client.RemoteEndPoint.ToString(), handshaker, serializer, server) {
             _client = client ?? throw new ArgumentNullException(nameof(client));
-            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _clientStream = _client.GetStream() ?? throw new ArgumentNullException(nameof(_client) + "." + nameof(_client.GetStream));
 
-            _packetBuilder = new PacketBuilder();
             IsListenerConnection = true;
 
             TransitionState(ConnectionState.Connecting);
             TransitionState(ConnectionState.Handshaking);
         }
 
-        public TcpConnection(string remoteHost, ISerializer serializer, IHandshaker handshaker)
-            : base(remoteHost, handshaker) {
+        public TcpConnection(string remoteHost, ISerializer serializer, IHandshaker handshaker, Client client)
+            : base(remoteHost, handshaker, serializer, client) {
             _client = new TcpClient();
-            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-            _packetBuilder = new PacketBuilder();
         }
 
-        protected TcpConnection(TcpConnection connection)
-            : base (connection.RemoteAddress, connection.Handshaker) {
+        protected TcpConnection(TcpConnection connection, Server server)
+            : base(connection.RemoteAddress, connection.Handshaker, connection.Serializer, server) {
             _client = new TcpClient();
-            _serializer = connection._serializer ?? throw new ArgumentException("Serializer is null", nameof(connection));
-            _packetBuilder = new PacketBuilder(connection._packetBuilder);
+        }
+
+        protected TcpConnection(TcpConnection connection, Client client)
+            : base(connection.RemoteAddress, connection.Handshaker, connection.Serializer, client) {
+            _client = new TcpClient();
         }
 
         protected override void OnConnectionStateChanged(object sender, ConnectionStateChangedEventArgs args) {
@@ -121,16 +117,26 @@ namespace Octgn.Communication
             throw new Exception($"{this}: Unable to connect to host {host}. Check logs for previous errors.");
         }
 
-        protected override async Task SendImpl(Packet packet, CancellationToken cancellationToken) {
-            try {
-                if (packet == null) throw new ArgumentNullException(nameof(packet));
+        private readonly object _sendLock = new object();
 
-                var packetData = Packet.Serialize(packet, _serializer)
-                    ?? throw new InvalidOperationException($"{this}: Packet serialization returned null");
+        protected override Task SendImpl(ulong packetId, byte[] data, CancellationToken cancellationToken) {
+            try {
+                if (data == null) throw new ArgumentNullException(nameof(data));
 
                 using (var combinedCancellations = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ClosedCancellationToken)) {
-                    await _clientStream.WriteAsync(packetData, 0, packetData.Length, combinedCancellations.Token);
+                    var packetBytes = BitConverter.GetBytes(packetId);
+
+                    var size = BitConverter.GetBytes(data.Length);
+
+                    // Don't let two sends happen at the same time.
+                    lock (_sendLock) {
+                        _client.Client.Send(packetBytes);
+                        _client.Client.Send(size);
+                        _client.Client.Send(data);
+                    }
                 }
+
+                return Task.CompletedTask;
             } catch (DisconnectedException) {
                 throw;
             } catch (ObjectDisposedException) {
@@ -141,21 +147,40 @@ namespace Octgn.Communication
         }
 
         private async Task ReadPackets() {
+            async Task<byte[]> ReadChunk(int size) {
+                var buffer = new byte[size];
+                var bufferLength = 0;
+
+                while (true) {
+                    ClosedCancellationToken.ThrowIfCancellationRequested();
+
+                    var count = await _clientStream.ReadAsync(buffer, bufferLength, size - bufferLength, ClosedCancellationToken);
+
+                    if (count == 0) throw new DisconnectedException();
+
+                    bufferLength += count;
+
+                    if (bufferLength == size) {
+                        return buffer;
+                    }
+                }
+            }
+
             Log.Info($"{this}: {nameof(ReadPackets)}");
 
             try {
-                var buffer = new byte[1024];
-
                 while (!ClosedCancellationToken.IsCancellationRequested) {
-                    var count = await _clientStream.ReadAsync(buffer, 0, 1024, ClosedCancellationToken).ConfigureAwait(false);
+                    var idChunk = await ReadChunk(8);
 
-                    if(count == 0) {
-                        throw new DisconnectedException();
-                    }
+                    var packetId = BitConverter.ToUInt64(idChunk, 0);
 
-                    var packets = _packetBuilder.AddData(_serializer, buffer, count).ToArray();
+                    var lengthChunk = await ReadChunk(4);
 
-                    ProcessReceivedPackets(packets).SignalOnException();
+                    var dataLength = BitConverter.ToInt32(lengthChunk, 0);
+
+                    var packetBuffer = await ReadChunk(dataLength);
+
+                    ProcessReceivedData(packetId, packetBuffer, Serializer).SignalOnException();
                 }
             } catch (ObjectDisposedException) {
                 Log.Warn($"{this}: Disconnected");
@@ -174,7 +199,11 @@ namespace Octgn.Communication
             TransitionState(ConnectionState.Closed);
         }
 
-        public override IConnection Clone() => new TcpConnection(this);
+        public override IConnection Clone() {
+            if (Server != null)
+                return new TcpConnection(this, Server);
+            return new TcpConnection(this, Client);
+        }
 
         protected override void Dispose(bool disposing) {
             if (!disposing) return;

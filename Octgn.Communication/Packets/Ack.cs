@@ -5,19 +5,16 @@ namespace Octgn.Communication.Packets
 {
     public sealed class Ack : Packet, IAck
     {
-        public override byte PacketTypeId => 255;
-        public override bool RequiresAck => false;
+        public override byte PacketType => 255;
+        public override PacketFlag Flags => PacketFlag.None;
 
         public ulong PacketId { get; set; }
         public DateTimeOffset PacketReceived { get; set; }
 
         protected override string PacketStringData => "ACK";
 
-        public Ack() { }
-
-        public Ack(Packet packet)
+        public Ack()
         {
-            PacketId = packet?.Id ?? throw new ArgumentException("packet or packet.Id can't be null", nameof(packet));
             PacketReceived = DateTimeOffset.Now;
         }
 

@@ -9,25 +9,21 @@ namespace Octgn.Communication
 {
     public static class ExtensionMethods
     {
-#if (TRACE_PACKETS)
         private static readonly bool IsTracePacketsEnabled = true;
-#else
-        private static readonly bool IsTracePacketsEnabled = false;
-#endif
 
-        public static void TracePacketReceived(this ILogger log, IConnection con, Packet packet) {
+        public static void TracePacketReceived(this ILogger log, IConnection con, IPacket packet) {
             if (!IsTracePacketsEnabled) return;
 
             log.Info($"{con} <--- RECIEVED PACKET {packet} <--- {con.RemoteAddress}");
         }
 
-        public static void TracePacketSent(this ILogger log, IConnection con, Packet packet) {
+        public static void TracePacketSent(this ILogger log, IConnection con, IPacket packet) {
             if (!IsTracePacketsEnabled) return;
 
             log.Info($"{con} ---> SENT PACKET {packet} ---> {con.RemoteAddress}");
         }
 
-        public static void TracePacketSending(this ILogger log, IConnection con, Packet packet) {
+        public static void TracePacketSending(this ILogger log, IConnection con, IPacket packet) {
             if (!IsTracePacketsEnabled) return;
 
             log.Info($"{con} -?-> SENDING PACKET {packet} -?-> {con.RemoteAddress}");

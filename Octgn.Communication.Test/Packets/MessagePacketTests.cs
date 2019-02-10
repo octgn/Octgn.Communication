@@ -1,7 +1,6 @@
 ﻿using NUnit.Framework;
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
-using System.Linq;
 
 namespace Octgn.Communication.Test.Packets
 {
@@ -19,11 +18,12 @@ namespace Octgn.Communication.Test.Packets
 
         private void Serialization(ISerializer serializer) {
             var message = new Message("userb", "hi");
-            message.Id = 1;
 
-            var serialized = Packet.Serialize(message, serializer).ToList();
+            var serialized = SerializedPacket.Create(message, serializer);
 
-            var deserialized = Packet.Deserialize(serialized, serializer, out int bytesUsed);
+            var read = SerializedPacket.Read(serialized);
+
+            var deserialized = read.DeserializePacket(serializer);
 
             Assert.IsInstanceOf<Message>(deserialized);
         }
