@@ -11,15 +11,12 @@ namespace Octgn.Communication
 #pragma warning restore IDE1006 // Naming Styles
 
         public IPEndPoint EndPoint { get; }
-        public ISerializer Serializer => _serializer;
 
         private readonly System.Net.Sockets.TcpListener _listener;
-        private readonly ISerializer _serializer;
         private readonly IHandshaker _handshaker;
 
-        public TcpListener(IPEndPoint endpoint, ISerializer serializer, IHandshaker handshaker) {
+        public TcpListener(IPEndPoint endpoint, IHandshaker handshaker) {
             EndPoint = endpoint;
-            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             _handshaker = handshaker ?? throw new ArgumentNullException(nameof(handshaker));
             _listener = new System.Net.Sockets.TcpListener(endpoint);
         }
@@ -74,7 +71,7 @@ namespace Octgn.Communication
             }
         }
 
-        private IConnection CreateConnection(TcpClient client) => new TcpConnection(client, _serializer, _handshaker, Server);
+        private IConnection CreateConnection(TcpClient client) => new TcpConnection(client, Server.Serializer, _handshaker, Server);
 
         public event ConnectionCreated ConnectionCreated;
 

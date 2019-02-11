@@ -55,7 +55,7 @@ namespace Load
 
             var serializer = new XmlSerializer();
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), serializer, new TestHandshaker()), new InMemoryConnectionProvider(), serializer)) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new InMemoryConnectionProvider(), serializer)) {
                 server.Initialize();
 
                 var clients = new Dictionary<string, Client>();
