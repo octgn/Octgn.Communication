@@ -21,8 +21,8 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var client = CreateClient(port, "user")) {
-                    await client.Connect("localhost");
+                using (var client = CreateClient("user")) {
+                    await client.Connect("localhost:" + port);
                 }
             }
         }
@@ -37,9 +37,9 @@ namespace Octgn.Communication.Test
                 server.Attach(new PingModule());
                 server.Initialize();
 
-                using (var client = CreateClient(port, "user")) {
+                using (var client = CreateClient("user")) {
                     client.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
-                    await client.Connect("localhost");
+                    await client.Connect("localhost:" + port);
 
                     var originalConnection = client.Connection;
 
@@ -93,10 +93,10 @@ namespace Octgn.Communication.Test
                 server.Attach(new PingModule());
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
-                    await clientA.Connect("localhost");
-                    await clientB.Connect("localhost");
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
+                    await clientA.Connect("localhost:" + port);
+                    await clientB.Connect("localhost:" + port);
 
                     var requestTime = await clientA.Connection.Ping();
 
@@ -113,10 +113,10 @@ namespace Octgn.Communication.Test
                 server.Attach(new PingModule());
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
-                    await clientA.Connect("localhost");
-                    await clientB.Connect("localhost");
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
+                    await clientA.Connect("localhost:" + port);
+                    await clientB.Connect("localhost:" + port);
 
                     await clientA.Connection.Ping();
                     await clientA.Connection.Ping();
@@ -134,8 +134,8 @@ namespace Octgn.Communication.Test
 
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA")) {
-                    await clientA.Connect("localhost");
+                using (var clientA = CreateClient("clientA")) {
+                    await clientA.Connect("localhost:" + port);
 
                     var delayTask = Task.Delay(10000);
 
@@ -160,8 +160,8 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA")) {
-                    await clientA.Connect("localhost");
+                using (var clientA = CreateClient("clientA")) {
+                    await clientA.Connect("localhost:" + port);
 
                     Assert.AreEqual(1, server.ConnectionProvider.GetConnections().Count());
 
@@ -179,10 +179,10 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
-                    await clientA.Connect("localhost");
-                    await clientB.Connect("localhost");
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
+                    await clientA.Connect("localhost:" + port);
+                    await clientB.Connect("localhost:" + port);
 
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
                         string messageBody = null;
@@ -219,8 +219,8 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA")) {
-                    await clientA.Connect("localhost");
+                using (var clientA = CreateClient("clientA")) {
+                    await clientA.Connect("localhost:" + port);
 
                     try {
                         var result = await clientA.Request(new Message("clientB", "asdf"));
@@ -241,10 +241,10 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
-                    await clientA.Connect("localhost");
-                    await clientB.Connect("localhost");
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
+                    await clientA.Connect("localhost:" + port);
+                    await clientB.Connect("localhost:" + port);
 
                     using (var eveMessageReceived = new AutoResetEvent(false)) {
                         string messageBody = null;
@@ -302,9 +302,9 @@ namespace Octgn.Communication.Test
                         args.IsHandled = true;
                 };
 
-                using (var client = CreateClient(port, "bad")) {
+                using (var client = CreateClient("bad")) {
                     try {
-                        await client.Connect("localhost");
+                        await client.Connect("localhost:" + port);
                     } catch (HandshakeException ex) {
                         Assert.AreEqual(ex.ErrorCode, "TestError");
                     }

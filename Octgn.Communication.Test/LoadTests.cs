@@ -34,7 +34,7 @@ namespace Octgn.Communication.Test
                 for (var i = 0; i < MaxUserId; i++) {
                     var name = i.ToString();
 
-                    var client = new LoadTestClient(MaxUserId, CreateClientConnectionProvider(port,name), serializer);
+                    var client = new LoadTestClient(MaxUserId, CreateConnectionCreator(name), serializer);
                     await client.Connect("localhost");
 
                     clients.Add(name, client);
@@ -108,7 +108,7 @@ namespace Octgn.Communication.Test
         public class LoadTestClient : Client
         {
             private readonly int _maxUserId;
-            public LoadTestClient(int maxUserId, IClientConnectionProvider clientConnectionProvider, ISerializer serializer)
+            public LoadTestClient(int maxUserId, IConnectionCreator clientConnectionProvider, ISerializer serializer)
                 : base(clientConnectionProvider, serializer) {
                 _maxUserId = maxUserId;
             }

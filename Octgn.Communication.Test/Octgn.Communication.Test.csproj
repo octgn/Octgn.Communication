@@ -79,7 +79,6 @@
     <Compile Include="SlowConnection.cs" />
     <Compile Include="SlowListener.cs" />
     <Compile Include="TestBase.cs" />
-    <Compile Include="TestClientConnectionProvider.cs" />
     <Compile Include="Utility\UIDTests.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -28,22 +28,22 @@ namespace Octgn.Communication.Test.Modules
 
                     server.Initialize();
 
-                    using (var clientA = CreateClient(port, "clientA"))
-                    using (var clientB = CreateClient(port,"clientB")) {
+                    using (var clientA = CreateClient("clientA"))
+                    using (var clientB = CreateClient("clientB")) {
                         clientA.Attach(new StatsModule(clientA));
                         clientB.Attach(new StatsModule(clientB));
 
                         using (var eveStatsReceived = new AutoResetEvent(false)) {
                             clientA.Stats().StatsModuleUpdate += (sender, args) => eveStatsReceived.Set();
 
-                            await clientA.Connect("localhost");
+                            await clientA.Connect("localhost:" + port);
 
                             Assert.True(eveStatsReceived.WaitOne(10000), "Clients stats module never updated.");
 
                             Assert.NotNull(clientA.Stats().Stats);
                             Assert.AreEqual(1, clientA.Stats().Stats.OnlineUserCount);
 
-                            await clientB.Connect("localhost");
+                            await clientB.Connect("localhost:" + port);
 
                             Assert.True(eveStatsReceived.WaitOne(10000));
 

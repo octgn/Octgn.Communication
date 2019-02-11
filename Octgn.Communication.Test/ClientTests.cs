@@ -29,9 +29,9 @@ namespace Octgn.Communication.Test
 
                 try {
                     Signal.OnException += Signal_OnException;
-                    using (var client = CreateClient(port, "a")) {
+                    using (var client = CreateClient("a")) {
                         client.Connected += (_, __) => throw expectedException;
-                        await client.Connect("localhost");
+                        await client.Connect("localhost:" + port);
                     }
                 } finally {
                     Signal.OnException -= Signal_OnException;
@@ -47,12 +47,12 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var client = CreateClient(port, "a")) {
-                    await client.Connect("localhost");
+                using (var client = CreateClient("a")) {
+                    await client.Connect("localhost:" + port);
 
                     try
                     {
-                        await client.Connect("localhost");
+                        await client.Connect("localhost:" + port);
                         Assert.Fail("Should have thrown an exception");
                     } catch (InvalidOperationException)
                     {
@@ -70,8 +70,8 @@ namespace Octgn.Communication.Test
             using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
-                using (var client = CreateClient(port, "userA")) {
-                    await client.Connect("localhost");
+                using (var client = CreateClient("userA")) {
+                    await client.Connect("localhost:" + port);
 
                     var tcs = new TaskCompletionSource<RequestPacket>();
 

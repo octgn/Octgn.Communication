@@ -17,15 +17,15 @@ namespace Octgn.Communication
 
         public bool IsConnected => Status == ConnectionStatus.Connected;
 
-        private readonly IClientConnectionProvider _clientConnectionProvider;
+        private readonly IConnectionCreator _connectionCreator;
 
-        public Client(IClientConnectionProvider clientConnectionProvider, ISerializer serializer) {
-            _clientConnectionProvider = clientConnectionProvider ?? throw new ArgumentNullException(nameof(clientConnectionProvider));
+        public Client(IConnectionCreator connectionCreator, ISerializer serializer) {
+            _connectionCreator = connectionCreator ?? throw new ArgumentNullException(nameof(connectionCreator));
             Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         }
 
         public override void Initialize() {
-            _clientConnectionProvider.Initialize(this);
+            _connectionCreator.Initialize(this);
 
             base.Initialize();
         }
@@ -106,7 +106,7 @@ namespace Octgn.Communication
             try {
                 Status = ConnectionStatus.Connecting;
 
-                Connection = _clientConnectionProvider.Create(_host);
+                Connection = _connectionCreator.Create(_host);
 
                 await Connection.Connect(cancellationToken);
                 Connection.ConnectionStateChanged += Connection_ConnectionStateChanged;
@@ -283,10 +283,4 @@ namespace Octgn.Communication
     }
 
     public enum ConnectionStatus { Disconnected, Connecting, Connected }
-
-    public interface IClientConnectionProvider
-    {
-        IConnection Create(string host);
-        void Initialize(Client client);
-    }
 }

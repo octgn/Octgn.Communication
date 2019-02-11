@@ -27,8 +27,8 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
                     clientA.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
                     clientB.ReconnectRetryDelay = TimeSpan.FromSeconds(1);
 
@@ -46,7 +46,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                             eveUpdateReceived.Set();
                         };
 
-                        await clientA.Connect("localhost");
+                        await clientA.Connect("localhost:" + port);
 
                         var result = await clientA.Subscription().RPC.AddUserSubscription("clientB", null);
 
@@ -100,8 +100,8 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                 server.Initialize();
 
-                using (var clientA = CreateClient(port, "clientA"))
-                using (var clientB = CreateClient(port, "clientB")) {
+                using (var clientA = CreateClient("clientA"))
+                using (var clientB = CreateClient("clientB")) {
                     clientA.InitializeSubscriptionModule();
                     clientB.InitializeSubscriptionModule();
 
@@ -113,7 +113,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
                             eveUpdateReceived.Set();
                         };
 
-                        await clientA.Connect("localhost");
+                        await clientA.Connect("localhost:" + port);
 
                         var result = await clientA.Subscription().RPC.AddUserSubscription("clientB", null);
 
@@ -129,7 +129,7 @@ namespace Octgn.Communication.Test.Modules.SubscriptionModule
 
                         updatedUserArgs = null;
 
-                        await clientB.Connect("localhost");
+                        await clientB.Connect("localhost:" + port);
 
                         if (!eveUpdateReceived.WaitOne(MaxTimeout))
                             Assert.Fail("clientA never got an update :(");

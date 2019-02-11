@@ -63,8 +63,8 @@ namespace Load
                 for (var i = 0; i <= MaxUserId; i++) {
                     var name = i.ToString();
 
-                    var client = new LoadTestClient(MaxUserId, CreateClientConnectionProvider(port, name), serializer);
-                    await client.Connect("localhost");
+                    var client = new LoadTestClient(MaxUserId, CreateConnectionCreator(name), serializer);
+                    await client.Connect("localhost:" + port);
 
                     clients.Add(name, client);
                 }
@@ -108,8 +108,8 @@ namespace Load
             }
         }
 
-        protected IClientConnectionProvider CreateClientConnectionProvider(int port, string userId) {
-            return new TestClientConnectionProvider(port, new XmlSerializer(), new TestHandshaker(userId));
+        protected IConnectionCreator CreateConnectionCreator(string userId) {
+            return new TcpConnectionCreator(new TestHandshaker(userId));
         }
 
         private static readonly Random _random = new Random();
@@ -148,7 +148,7 @@ namespace Load
         public class LoadTestClient : Client
         {
             private readonly int _maxUserId;
-            public LoadTestClient(int maxUserId, IClientConnectionProvider clientConnectionProvider, ISerializer serializer)
+            public LoadTestClient(int maxUserId, IConnectionCreator clientConnectionProvider, ISerializer serializer)
                 : base(clientConnectionProvider, serializer) {
                 _maxUserId = maxUserId;
             }

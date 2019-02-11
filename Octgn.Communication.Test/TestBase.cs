@@ -96,12 +96,12 @@ namespace Octgn.Communication.Test
         private static int _currentPort = 7920;
         public static int NextPort => Interlocked.Increment(ref _currentPort);
 
-        protected Client CreateClient(int port, string userId) {
-            return new Client(CreateClientConnectionProvider(port, userId), new XmlSerializer());
+        protected Client CreateClient(string userId) {
+            return new Client(CreateConnectionCreator(userId), new XmlSerializer());
         }
 
-        protected IClientConnectionProvider CreateClientConnectionProvider(int port, string userId) {
-            return new TestClientConnectionProvider(port, new XmlSerializer(), new TestHandshaker(userId));
+        protected IConnectionCreator CreateConnectionCreator(string userId) {
+            return new TcpConnectionCreator(new TestHandshaker(userId));
         }
     }
 }
