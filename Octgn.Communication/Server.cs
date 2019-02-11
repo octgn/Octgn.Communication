@@ -16,15 +16,13 @@ namespace Octgn.Communication
         public IConnectionProvider ConnectionProvider { get; }
         public ISerializer Serializer { get; }
 
-        public Server(IConnectionListener listener, IConnectionProvider connectionProvider, ISerializer serializer) {
+        public Server(IConnectionListener listener, ISerializer serializer) {
             Listener = listener ?? throw new ArgumentNullException(nameof(listener));
-            ConnectionProvider = connectionProvider ?? throw new ArgumentNullException(nameof(connectionProvider));
             Serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 
-            Listener.ConnectionCreated += Listener_ConnectionCreated;
+            ConnectionProvider = new ConnectionProvider();
 
-            // Must be at the end
-            ConnectionProvider.Initialize(this);
+            Listener.ConnectionCreated += Listener_ConnectionCreated;
         }
 
         public override void Initialize() {

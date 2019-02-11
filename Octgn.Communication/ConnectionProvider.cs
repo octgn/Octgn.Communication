@@ -5,19 +5,19 @@ using System.Threading.Tasks;
 
 namespace Octgn.Communication
 {
-    public class InMemoryConnectionProvider : IConnectionProvider {
+    public class ConnectionProvider : IConnectionProvider {
         private IConnection[] _connections;
         private readonly object _connectionLocker = new object();
 
-        public InMemoryConnectionProvider() {
+        public ConnectionProvider() {
             _connections = new IConnection[0];
         }
 
         public virtual Task AddConnection(IConnection connection) {
-            if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+            if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
 
             lock (_connectionLocker) {
-                if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+                if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
 
                 var cons = _connections.ToList();
                 cons.Add(connection);
@@ -41,10 +41,10 @@ namespace Octgn.Communication
         private void RemoveConnection(IConnection connection) {
             connection.ConnectionStateChanged -= Connection_ConnectionStateChanged;
 
-            if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+            if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
 
             lock (_connectionLocker) {
-                if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+                if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
 
                 _connections = _connections.Where(con => !con.Equals(connection)).ToArray();
                 connection.Dispose();
@@ -52,13 +52,13 @@ namespace Octgn.Communication
         }
 
         public virtual IEnumerable<IConnection> GetConnections() {
-            if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+            if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
 
             return _connections;
         }
 
         public virtual void Initialize(Server server) {
-            if (_disposedValue) throw new ObjectDisposedException(nameof(InMemoryConnectionProvider));
+            if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
         }
 
         public event EventHandler<ConnectionStateChangedEventArgs> ConnectionStateChanged;

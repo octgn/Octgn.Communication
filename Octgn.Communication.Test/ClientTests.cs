@@ -17,7 +17,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
                 var expectedException = new NotImplementedException();
@@ -44,7 +44,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var client = CreateClient(port, "a")) {
@@ -67,7 +67,7 @@ namespace Octgn.Communication.Test
         {
             var port = NextPort;
 
-            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
+            using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                 server.Initialize();
 
                 using (var client = CreateClient(port, "userA")) {

@@ -19,7 +19,7 @@ namespace Octgn.Communication.Test.Modules
 
             using (var eveStatsUpdateOnServer = new AutoResetEvent(false)) {
 
-                using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new InMemoryConnectionProvider(), new XmlSerializer())) {
+                using (var server = new Server(new TcpListener(new IPEndPoint(IPAddress.Loopback, port), new TestHandshaker()), new XmlSerializer())) {
                     server.Attach(new StatsModule(server));
 
                     // We want the stats module to ticks faster to get this test over with quicker.
