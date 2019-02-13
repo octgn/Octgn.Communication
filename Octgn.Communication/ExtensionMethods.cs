@@ -9,7 +9,7 @@ namespace Octgn.Communication
 {
     public static class ExtensionMethods
     {
-        private static readonly bool IsTracePacketsEnabled = true;
+        internal static readonly bool IsTracePacketsEnabled = false;
 
         public static void TracePacketReceived(this ILogger log, IConnection con, IPacket packet) {
             if (!IsTracePacketsEnabled) return;
