@@ -32,9 +32,6 @@ namespace Octgn.Communication.Test
             //ConnectionBase.WaitForResponseTimeout = Debugger.IsAttached ? TimeSpan.FromMinutes(30) : TimeSpan.FromSeconds(10);
             ConnectionBase.WaitForResponseTimeout = TimeSpan.FromSeconds(10);
 
-            while (InMemoryLogger.LogMessages.Count > 0) {
-                InMemoryLogger.LogMessages.TryDequeue(out var result);
-            }
             Signal.OnException += Signal_OnException;
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
         }
