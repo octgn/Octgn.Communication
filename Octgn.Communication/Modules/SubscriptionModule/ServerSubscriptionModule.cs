@@ -130,6 +130,7 @@ namespace Octgn.Communication.Modules.SubscriptionModule
                     case ConnectionState.Created:
                     case ConnectionState.Connecting:
                     case ConnectionState.Handshaking:
+                        break;
                     case ConnectionState.Connected:
                         await Broadcast_UserStatusChanged(e.Connection.User, UserOnlineStatus);
                         break;
