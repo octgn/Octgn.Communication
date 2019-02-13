@@ -34,7 +34,6 @@ namespace Octgn.Communication.Serializers
             _serializers.Add(typeof(DateTime), new DataContractSerializer(typeof(DateTime), settings));
             _serializers.Add(typeof(string), new DataContractSerializer(typeof(string), settings));
             _serializers.Add(typeof(UserSubscription), new DataContractSerializer(typeof(UserSubscription), settings));
-            _serializers.Add(typeof(ResponsePacket), new DataContractSerializer(typeof(ResponsePacket), settings));
         }
 
         public XmlSerializer(params Type[] types) {

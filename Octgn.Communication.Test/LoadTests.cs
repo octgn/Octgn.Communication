@@ -118,7 +118,6 @@ namespace Octgn.Communication.Test
 
                 Assert.NotNull(message);
 
-                args.Response = new ResponsePacket(args.Request);
                 args.IsHandled = true;
 
                 return Task.CompletedTask;
