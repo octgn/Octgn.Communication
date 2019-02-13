@@ -41,6 +41,10 @@ namespace Octgn.Communication
                 args.Connection.RequestReceived += Connection_RequestReceived;
                 args.Connection.PacketReceived += Connection_PacketReceived;
                 ConnectionProvider.AddConnection(args.Connection);
+
+                if (args.Connection is ConnectionBase cb) {
+                    cb.StartHandshaking();
+                }
             } catch (Exception ex) {
                 Signal.Exception(ex);
             }

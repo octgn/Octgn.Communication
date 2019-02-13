@@ -171,7 +171,7 @@ namespace Octgn.Communication
             try {
                 await ConnectImpl(cancellationToken);
 
-                TransitionState(ConnectionState.Handshaking);
+                StartHandshaking();
 
                 if (Handshaker != null) {
                     Log.Info($"{this}: Handshaking...");
@@ -192,6 +192,10 @@ namespace Octgn.Communication
                 TransitionState(ConnectionState.Closed);
                 throw;
             }
+        }
+
+        internal void StartHandshaking() {
+            TransitionState(ConnectionState.Handshaking);
         }
 
         protected abstract Task ConnectImpl(CancellationToken cancellationToken);

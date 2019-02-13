@@ -36,7 +36,6 @@ namespace Octgn.Communication
             IsListenerConnection = true;
 
             TransitionState(ConnectionState.Connecting);
-            TransitionState(ConnectionState.Handshaking);
         }
 
         public TcpConnection(string remoteHost, ISerializer serializer, IHandshaker handshaker, Client client)

@@ -35,7 +35,7 @@ namespace Octgn.Communication.Test
                     var name = i.ToString();
 
                     var client = new LoadTestClient(MaxUserId, CreateConnectionCreator(name), serializer);
-                    await client.Connect("localhost");
+                    await client.Connect("localhost:" + port);
 
                     clients.Add(name, client);
                 }
