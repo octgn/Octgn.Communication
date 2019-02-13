@@ -64,6 +64,8 @@ namespace Octgn.Communication.Modules.SubscriptionModule
 
                 try {
                     await _server.Request(subUpdatePacket, subscriberUsername);
+                } catch (ErrorResponseException ex) {
+                    Log.Warn(ex);
                 } catch (Exception ex) {
                     Signal.Exception(ex);
                 }
