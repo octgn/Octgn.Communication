@@ -57,6 +57,21 @@ namespace Octgn.Communication
             return _connections;
         }
 
+        public IEnumerable<IConnection> GetConnections(string destination, bool isConnected) {
+            IEnumerable<IConnection> query = null;
+
+            if(destination == "everyone") {
+                query = _connections;
+            } else {
+                query = _connections.Where(con => con.User.Id.Equals(destination, StringComparison.InvariantCultureIgnoreCase));
+            }
+
+            if (isConnected)
+                query = query.Where(con => con.State == ConnectionState.Connected);
+
+            return query;
+        }
+
         public virtual void Initialize(Server server) {
             if (_disposedValue) throw new ObjectDisposedException(nameof(ConnectionProvider));
         }

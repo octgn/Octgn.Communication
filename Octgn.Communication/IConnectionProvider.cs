@@ -11,8 +11,9 @@ namespace Octgn.Communication
         /// <summary>
         /// Gets all added <see cref="IConnection"/>'s. Further filtering is required to find Connected connections.
         /// </summary>
-        /// <returns></returns>
         IEnumerable<IConnection> GetConnections();
+
+        IEnumerable<IConnection> GetConnections(string destination, bool isConnected);
 
         Task AddConnection(IConnection connection);
 
