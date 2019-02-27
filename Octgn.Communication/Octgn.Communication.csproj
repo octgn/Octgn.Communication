@@ -6,7 +6,7 @@
     <Company>Octgn</Company>
     <Copyright>Copyright © OCTGN 2017</Copyright>
     <PackageProjectUrl>http://www.octgn.net</PackageProjectUrl>
-    <PackageLicenseUrl>http://www.octgn.net</PackageLicenseUrl>
+    <PackageLicenseUrl>https://github.com/octgn/Octgn.Communication/blob/master/LICENSE.md</PackageLicenseUrl>
     <PackageIconUrl>http://www.octgn.net/icon.ico</PackageIconUrl>
     <RepositoryUrl>http://github.com/octgn/octgn.communication</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

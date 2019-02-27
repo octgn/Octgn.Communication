@@ -6,7 +6,7 @@
     <title>$title$</title>
     <authors>$author$</authors>
     <owners>$author$</owners>
-    <licenseUrl>http://www.octgn.net</licenseUrl>
+    <licenseUrl>https://github.com/octgn/Octgn.Communication/blob/master/LICENSE.md</licenseUrl>
     <projectUrl>http://www.octgn.net</projectUrl>
     <iconUrl>http://www.octgn.net/icon.ico</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
