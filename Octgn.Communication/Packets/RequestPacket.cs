@@ -36,7 +36,10 @@ namespace Octgn.Communication.Packets
 
         public override byte PacketType { get; } = 3;
 
-        public override PacketFlag Flags => PacketFlag.AckRequired;
+        public override PacketFlag Flags => 
+            Destination == "everyone" 
+            ? PacketFlag.None // Don't ack when we're broadcasting
+            : PacketFlag.AckRequired;
 
 
         protected override string PacketStringData => $"REQ+{Name}";

@@ -119,11 +119,7 @@ namespace Octgn.Communication
                 if (!string.IsNullOrWhiteSpace(args.Packet.Destination)) {
                     var sendCount = 0;
 
-                    var connectionQuery = ConnectionProvider.GetConnections()
-                        .Where(con => con.State == ConnectionState.Connected)
-                        .Where(con => con.User.Id.Equals(args.Packet.Destination, StringComparison.InvariantCultureIgnoreCase));
-
-                    var connections = connectionQuery.ToArray();
+                    var connections = ConnectionProvider.GetConnections(args.Packet.Destination, true).ToArray();
 
                     Log.Info($"Sending {args.Packet} to {connections.Length} connections: {string.Join(",", connections.Take(10))}");
 
