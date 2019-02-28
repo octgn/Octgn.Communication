@@ -129,13 +129,16 @@ namespace Octgn.Communication
                             try {
                                 var response = await connection.Send(args.Packet);
 
-                                if (response == null && args.Packet.Flags.HasFlag(PacketFlag.AckRequired)) {
-                                    throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} routed to {args.Packet.Destination}, but they didn't handle the request.", false);
+                                if (args.Packet.Flags.HasFlag(PacketFlag.AckRequired)) {
+
+                                    if (response == null) {
+                                        throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {args.Packet} routed to {args.Packet.Destination}, but they didn't handle the request.", false);
+                                    }
+
+                                    var responsePacket = (ResponsePacket)response;
+
+                                    await args.Connection.Respond(args.PacketId, responsePacket);
                                 }
-
-                                var responsePacket = (ResponsePacket)response;
-
-                                await args.Connection.Respond(args.PacketId, responsePacket);
 
                                 sendCount++;
                             } catch (Exception ex) when (!(ex is ErrorResponseException)) {
