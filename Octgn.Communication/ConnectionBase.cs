@@ -286,14 +286,13 @@ namespace Octgn.Communication
                         if (args.IsHandled) break;
                     }
 
-                    // No response required.
-                    if (!args.IsHandled && !requestPacket.Flags.HasFlag(PacketFlag.AckRequired)) return;
+                    if (requestPacket.Flags.HasFlag(PacketFlag.AckRequired)) {
+                        var unhandledRequestResponse = new ResponsePacket(new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
 
-                    var unhandledRequestResponse = new ResponsePacket(new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
+                        var response = (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Response));
 
-                    var response = (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Response));
-
-                    await Respond(packetId, response, ClosedCancellationToken);
+                        await Respond(packetId, response, ClosedCancellationToken);
+                    }
                 } else if (packet is IAck ack) {
                     if (_awaitingAck.TryGetValue(ack.PacketId, out var tcs))
                         tcs.SetResult(packet);
