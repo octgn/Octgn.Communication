@@ -339,13 +339,15 @@ namespace Octgn.Communication
             if (State == ConnectionState.Closed) throw new InvalidOperationException($"{this}: Connection is closed.");
             var response = await Send(packet, cancellationToken);
 
-            if (response == null && !packet.Flags.HasFlag(PacketFlag.AckRequired)) return null;
+            if (packet.Flags.HasFlag(PacketFlag.AckRequired)) {
+                if (response == null) return null;
 
-            if (!(response is ResponsePacket responsePacket))
-                throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response?.GetType()?.Name ?? "null"} response");
+                if (!(response is ResponsePacket responsePacket))
+                    throw new InvalidOperationException($"{this}: {nameof(Request)}: Expected a {nameof(ResponsePacket)}, but got a {response?.GetType()?.Name ?? "null"} response");
 
-            responsePacket.Verify();
-            return responsePacket;
+                responsePacket.Verify();
+                return responsePacket;
+            } return null;
         }
 
         #endregion

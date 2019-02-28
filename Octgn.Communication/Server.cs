@@ -86,8 +86,7 @@ namespace Octgn.Communication
 
             foreach (var connection in connections) {
                 try {
-                    var newRequest = new RequestPacket(request);
-                    receiverResponse = await connection.Request(newRequest);
+                    receiverResponse = await connection.Request(request);
 
                     sendCount++;
                 } catch (Exception ex) when (!(ex is ErrorResponseException)) {
