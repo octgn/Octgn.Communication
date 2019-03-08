@@ -113,7 +113,7 @@ namespace Octgn.Communication
                 }
             }
 
-            throw new Exception($"{this}: Unable to connect to host {host}. Check logs for previous errors.");
+            throw new CouldNotConnectException($"{this}: Unable to connect to host {host}. Check logs for previous errors.");
         }
 
         private readonly object _sendLock = new object();
