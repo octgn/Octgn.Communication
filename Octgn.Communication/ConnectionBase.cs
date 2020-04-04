@@ -150,7 +150,7 @@ namespace Octgn.Communication
 
                 case IAck ack:
                     if (_awaitingAck.TryRemove(ack.PacketId, out TaskCompletionSource<Packet> tcs))
-                        tcs.SetResult(packet);
+                        tcs.TrySetResult(packet);
                     else
                         Log.Warn($"{this}: Ack: Could not find packet #{ack.PacketId}");
 
