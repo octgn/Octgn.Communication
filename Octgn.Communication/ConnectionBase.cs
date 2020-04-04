@@ -5,6 +5,7 @@ using Octgn.Communication.Packets;
 using Nito.AsyncEx;
 using System.Linq;
 using Octgn.Communication.Utility;
+using System.Collections.Generic;
 
 namespace Octgn.Communication
 {
@@ -148,10 +149,11 @@ namespace Octgn.Communication
                     break;
 
                 case IAck ack:
-                    if (_awaitingAck.TryGetValue(ack.PacketId, out TaskCompletionSource<Packet> tcs))
+                    if (_awaitingAck.TryRemove(ack.PacketId, out TaskCompletionSource<Packet> tcs))
                         tcs.SetResult(packet);
                     else
-                        throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
+                        Log.Warn($"{this}: Ack: Could not find packet #{ack.PacketId}");
+
                     break;
 
                 default:
@@ -217,10 +219,12 @@ namespace Octgn.Communication
                     Log.Info($"{this}: Waiting for ack for #{packetId}");
 #endif
                     var result = await Task.WhenAny(tcs.Task, ClosedCancellationTask, Task.Delay(WaitForResponseTimeout), sendPacketCancellationTokenSource.Task);
+
                     if (result == tcs.Task) {
 #if (DEBUG)
                         Log.Info($"Ack for #{packetId} received");
 #endif
+
                         return tcs.Task.Result;
                     }
 
@@ -235,8 +239,6 @@ namespace Octgn.Communication
 
                 // Just in case it wasn't set.
                 tcs.TrySetCanceled();
-
-                _awaitingAck.TryRemove(packetId, out tcs);
             }
         }
 
