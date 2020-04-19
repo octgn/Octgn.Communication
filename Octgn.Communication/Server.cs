@@ -73,10 +73,12 @@ namespace Octgn.Communication
 
             request.Destination = destination;
 
+            var isRouted = !string.IsNullOrWhiteSpace(request.Destination);
+
             var connectionQuery = ConnectionProvider.GetConnections()
                 .Where(con => con.State == ConnectionState.Connected);
 
-            if (!string.IsNullOrWhiteSpace(destination)) {
+            if (isRouted) {
                 connectionQuery = connectionQuery.Where(con => con.User.Id.Equals(destination, StringComparison.InvariantCultureIgnoreCase));
             }
 
@@ -94,14 +96,14 @@ namespace Octgn.Communication
                 }
             }
 
-            if (sendCount < 1) {
+            if (isRouted && sendCount < 1) {
                 Log.Warn($"Unable to deliver packet to user {destination}, they are offline or the destination is invalid.");
                 throw new ErrorResponseException(ErrorResponseCodes.UserOffline, $"Unable to deliver packet to user {destination}, they are offline of the destination is invalid.", false);
             }
 
             Log.Info($"Sent {request} to {sendCount} clients");
 
-            if (receiverResponse == null && request.Flags.HasFlag(PacketFlag.AckRequired))
+            if (isRouted && receiverResponse == null && request.Flags.HasFlag(PacketFlag.AckRequired))
                 throw new ErrorResponseException(ErrorResponseCodes.UnhandledRequest, $"Packet {request} routed to {destination}, but they didn't handle the request.", false);
 
             return receiverResponse;
