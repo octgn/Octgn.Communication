@@ -46,7 +46,11 @@ namespace Octgn.Communication.Serializers
             if (types == null) return;
             IncludedTypes = IncludedTypes.Concat(types).ToArray();
             foreach (var type in types) {
-                _serializers.Add(type, new DataContractSerializer(type, _settings));
+                lock (_serializers) {
+                    if (!_serializers.ContainsKey(type)) {
+                        _serializers.Add(type, new DataContractSerializer(type, _settings));
+                    }
+                }
             }
         }
 
