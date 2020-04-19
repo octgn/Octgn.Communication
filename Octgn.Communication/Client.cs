@@ -1,5 +1,6 @@
 ﻿using Octgn.Communication.Packets;
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,14 +37,14 @@ namespace Octgn.Communication
                 // Validate transition
                 switch (_status) {
                     case ConnectionStatus.Disconnected:
-                        if(value == ConnectionStatus.Disconnected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
-                        if(value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if (value == ConnectionStatus.Disconnected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if (value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
                         break;
                     case ConnectionStatus.Connecting:
                         break;
                     case ConnectionStatus.Connected:
-                        if(value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
-                        if(value == ConnectionStatus.Connecting) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if (value == ConnectionStatus.Connected) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
+                        if (value == ConnectionStatus.Connecting) throw new InvalidOperationException($"Cannot transition from {_status} to {value}");
                         break;
                     default:
                         throw new NotImplementedException(_status.ToString());
@@ -131,8 +132,7 @@ namespace Octgn.Communication
         }
 
         private async void Connection_ConnectionStateChanged(object sender, ConnectionStateChangedEventArgs e) {
-            try
-            {
+            try {
                 // The underlying connection was closed.
                 if (e.NewState == ConnectionState.Closed) {
                     e.Connection.ConnectionStateChanged -= Connection_ConnectionStateChanged;
@@ -162,8 +162,7 @@ namespace Octgn.Communication
             try {
                 Log.Info($"{this}: Reconnecting...");
 
-                for(currentTry = 0; currentTry < maxRetryCount; currentTry++)
-                {
+                for (currentTry = 0; currentTry < maxRetryCount; currentTry++) {
                     if (IsDisposed) {
                         Log.Info($"{this}: {nameof(ReconnectAsync)}: Disposed, stopping reconnect attempt.");
                         reportReconnectFailed = false;
@@ -222,7 +221,7 @@ namespace Octgn.Communication
 
             if (!args.IsHandled) {
 
-                foreach(var module in GetModules()) {
+                foreach (var module in GetModules()) {
                     var result = await module.Process(args.Request);
                     if (result.WasProcessed) {
                         args.IsHandled = true;
@@ -235,8 +234,18 @@ namespace Octgn.Communication
 
             // Copy locally in case it become null
             var eventHandler = RequestReceived;
-            if(!args.IsHandled && eventHandler != null) {
-                await eventHandler.Invoke(this, args);
+
+            if (!args.IsHandled && eventHandler != null) {
+                foreach (var handler in eventHandler.GetInvocationList().Cast<RequestReceived>()) {
+                    var result = await handler(this, args);
+
+                    if (result != null) {
+                        args.Response = result;
+                        args.IsHandled = true;
+                    }
+
+                    if (args.IsHandled) break;
+                }
             }
 
             return args.Response;
