@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Octgn.Communication.Packets;
 using System.Linq;
 using Octgn.Communication.Utility;
-using System.Collections.Generic;
 
 namespace Octgn.Communication
 {
