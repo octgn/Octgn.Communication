@@ -4,7 +4,7 @@ namespace Octgn.Communication
 {
     public interface IConnectionCreator
     {
-        public IHandshaker Handshaker { get; }
+        IHandshaker Handshaker { get; }
 
         IConnection Create(string host);
 
