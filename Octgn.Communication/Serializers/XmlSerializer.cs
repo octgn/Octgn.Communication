@@ -12,6 +12,7 @@ namespace Octgn.Communication.Serializers
     public class XmlSerializer : ISerializer
     {
         private readonly Dictionary<Type, DataContractSerializer> _serializers = new Dictionary<Type, DataContractSerializer>();
+        private readonly DataContractSerializerSettings _settings = new DataContractSerializerSettings();
         private DataContractSerializer GetSerializer(Type dataType) {
             if(_serializers.TryGetValue(dataType, out var serializer)) {
                 return serializer;
@@ -25,15 +26,14 @@ namespace Octgn.Communication.Serializers
             };
 
 
-            var settings = new DataContractSerializerSettings();
-            settings.DataContractResolver = new XmlDataContractResolver(this);
+            _settings.DataContractResolver = new XmlDataContractResolver(this);
 
-            _serializers.Add(typeof(List<NameValuePair>), new DataContractSerializer(typeof(List<NameValuePair>), settings));
-            _serializers.Add(typeof(HandshakeResult), new DataContractSerializer(typeof(HandshakeResult), settings));
-            _serializers.Add(typeof(ErrorResponseData), new DataContractSerializer(typeof(ErrorResponseData), settings));
-            _serializers.Add(typeof(DateTime), new DataContractSerializer(typeof(DateTime), settings));
-            _serializers.Add(typeof(string), new DataContractSerializer(typeof(string), settings));
-            _serializers.Add(typeof(UserSubscription), new DataContractSerializer(typeof(UserSubscription), settings));
+            _serializers.Add(typeof(List<NameValuePair>), new DataContractSerializer(typeof(List<NameValuePair>), _settings));
+            _serializers.Add(typeof(HandshakeResult), new DataContractSerializer(typeof(HandshakeResult), _settings));
+            _serializers.Add(typeof(ErrorResponseData), new DataContractSerializer(typeof(ErrorResponseData), _settings));
+            _serializers.Add(typeof(DateTime), new DataContractSerializer(typeof(DateTime), _settings));
+            _serializers.Add(typeof(string), new DataContractSerializer(typeof(string), _settings));
+            _serializers.Add(typeof(UserSubscription), new DataContractSerializer(typeof(UserSubscription), _settings));
         }
 
         public XmlSerializer(params Type[] types) {
@@ -45,6 +45,9 @@ namespace Octgn.Communication.Serializers
         public void Include(params Type[] types) {
             if (types == null) return;
             IncludedTypes = IncludedTypes.Concat(types).ToArray();
+            foreach (var type in types) {
+                _serializers.Add(type, new DataContractSerializer(type, _settings));
+            }
         }
 
         public object Deserialize(Type dataType, byte[] data) {
