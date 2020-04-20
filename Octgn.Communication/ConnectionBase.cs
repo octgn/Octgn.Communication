@@ -466,7 +466,15 @@ namespace Octgn.Communication
 
         private readonly CancellationTokenSource _closedCancellation = new CancellationTokenSource();
 
-        protected CancellationToken ClosedCancellationToken => _closedCancellation.Token;
+        protected CancellationToken ClosedCancellationToken {
+            get {
+                try {
+                    return _closedCancellation.Token;
+                } catch (ObjectDisposedException) {
+                    throw new OperationCanceledException();
+                }
+            }
+        }
 
         #region IDisposable Support
         private bool _disposedValue = false; // To detect redundant calls
