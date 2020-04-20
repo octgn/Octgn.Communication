@@ -302,6 +302,8 @@ namespace Octgn.Communication
                     throw new NotImplementedException($"{this}: {packet.GetType().Name} packet not supported.");
 #pragma warning restore RCS1079 // Throwing of new NotImplementedException.
                 }
+            } catch (OperationCanceledException) {
+                Log.Warn($"{this}: Canceled processing packet {serializedPacket}");
             } catch (Exception ex) {
                 Signal.Exception(ex, $"{this}: Error processing packet {serializedPacket}");
             }
