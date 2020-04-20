@@ -52,6 +52,10 @@ namespace Octgn.Communication
                         result = await _listener.AcceptTcpClientAsync();
                     } catch (ObjectDisposedException) {
                         break;
+                    } catch(SocketException se) {
+                        Log.Warn($"{nameof(ListenForConnectionAsync)}: {se}");
+
+                        continue;
                     }
 
                     // We don't expect this to ever happen, just a safeguard.
