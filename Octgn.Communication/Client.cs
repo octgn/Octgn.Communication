@@ -149,15 +149,16 @@ namespace Octgn.Communication
             }
         }
 
-        public const int ReconnectRetryCount = 10;
+        public static int DefaultReconnectRetryCount { get; set; } = 10;
+        public int ReconnectRetryCount { get; set; } = DefaultReconnectRetryCount;
         public static TimeSpan DefaultReconnectRetryDelay = TimeSpan.FromSeconds(5);
         public TimeSpan ReconnectRetryDelay { get; set; } = DefaultReconnectRetryDelay;
 
         private async Task ReconnectAsync() {
             var currentTry = 0;
-            const int maxRetryCount = ReconnectRetryCount;
+            var maxRetryCount = ReconnectRetryCount;
 
-            bool reportReconnectFailed = true;
+            var reportReconnectFailed = true;
 
             try {
                 Log.Info($"{this}: Reconnecting...");
