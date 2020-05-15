@@ -36,7 +36,7 @@ namespace Octgn.Communication.Test
             Console.WriteLine($"=== {TestContext.CurrentContext.Test.Name}: Starting test...");
         }
 
-        private List<ExceptionEventArgs> SignalErrors = new List<ExceptionEventArgs>();
+        protected List<ExceptionEventArgs> SignalErrors = new List<ExceptionEventArgs>();
 
         private void Signal_OnException(object sender, ExceptionEventArgs args) {
             SignalErrors.Add(args);

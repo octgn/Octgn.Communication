@@ -34,6 +34,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="GlobalSuppressions.cs" />
+    <Compile Include="InvalidDataLengthException.cs" />
     <Compile Include="TcpConnection.cs" />
     <Compile Include="TcpConnectionCreator.cs" />
     <Compile Include="TcpListener.cs" />

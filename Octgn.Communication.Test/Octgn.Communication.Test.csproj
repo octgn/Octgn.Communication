@@ -65,6 +65,7 @@
     <Compile Include="Modules\StatsModuleTests.cs" />
     <Compile Include="Modules\SubscriptionModule\Implementation.cs" />
     <Compile Include="ServerModuleEvents.cs" />
+    <Compile Include="WindowsDesktop\Tester.cs" />
     <Compile Include="TestHandshaker.cs" />
     <Compile Include="Packets\AckPacketTests.cs" />
     <Compile Include="Packets\DataPacketTests.cs" />

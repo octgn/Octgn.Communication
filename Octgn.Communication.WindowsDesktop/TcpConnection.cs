@@ -14,6 +14,8 @@ namespace Octgn.Communication
         private static readonly ILogger Log = LoggerFactory.Create(nameof(TcpConnection));
 #pragma warning restore IDE1006 // Naming Styles
 
+        internal TcpClient TcpClient => _client;
+
         private readonly TcpClient _client;
         /// <summary>
         /// You must close the NetworkStream when you are through sending and receiving data. Closing TcpClient does not release the NetworkStream. -- https://docs.microsoft.com/en-us/dotnet/api/system.net.sockets.tcpclient.getstream?f1url=https%3A%2F%2Fmsdn.microsoft.com%2Fquery%2Fdev15.query%3FappId%3DDev15IDEF1%26l%3DEN-US%26k%3Dk(System.Net.Sockets.TcpClient.GetStream);k(TargetFrameworkMoniker-.NETFramework,Version%3Dv4.7);k(DevLang-csharp)%26rd%3Dtrue&view=netframework-4.7.1
@@ -177,12 +179,16 @@ namespace Octgn.Communication
 
                     var dataLength = BitConverter.ToInt32(lengthChunk, 0);
 
+                    if (dataLength <= 0 || dataLength > 5000000) throw new InvalidDataLengthException($"Invalid data length {dataLength}");
+
                     var packetBuffer = await ReadChunk(dataLength);
 
                     ProcessReceivedData(packetId, packetBuffer, Serializer).SignalOnException();
                 }
             } catch (ObjectDisposedException) {
                 Log.Warn($"{this}: Disconnected");
+            } catch (InvalidDataLengthException ex) {
+                Log.Warn($"{this}: Invalid Data Length: {ex.Message}");
             } catch (IOException ex) {
                 Log.Warn($"{this}: Disconnected", ex);
             } catch (TaskCanceledException) {
