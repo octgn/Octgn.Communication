@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Octgn.Communication.Serializers;
 using System.Collections.Generic;
+using Octgn.Communication.Tcp;
 
 namespace Octgn.Communication.Test
 {

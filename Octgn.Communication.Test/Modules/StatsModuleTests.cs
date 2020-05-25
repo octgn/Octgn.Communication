@@ -1,6 +1,7 @@
 ﻿using NUnit.Framework;
 using Octgn.Communication.Modules;
 using Octgn.Communication.Serializers;
+using Octgn.Communication.Tcp;
 using System;
 using System.Net;
 using System.Threading;

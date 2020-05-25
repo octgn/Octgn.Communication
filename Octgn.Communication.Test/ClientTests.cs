@@ -1,10 +1,10 @@
 ﻿using NUnit.Framework;
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
+using Octgn.Communication.Tcp;
 using System;
 using System.Linq;
 using System.Net;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication.Test

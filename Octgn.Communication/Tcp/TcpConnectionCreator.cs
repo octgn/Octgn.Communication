@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Octgn.Communication
+namespace Octgn.Communication.Tcp
 {
     public class TcpConnectionCreator : IConnectionCreator
     {

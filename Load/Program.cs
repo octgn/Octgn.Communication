@@ -1,6 +1,7 @@
 ﻿using Octgn.Communication;
 using Octgn.Communication.Packets;
 using Octgn.Communication.Serializers;
+using Octgn.Communication.Tcp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

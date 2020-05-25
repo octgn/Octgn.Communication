@@ -8,6 +8,7 @@ using System.Linq;
 using Octgn.Communication.Serializers;
 using FakeItEasy;
 using Octgn.Communication.Modules.SubscriptionModule;
+using Octgn.Communication.Tcp;
 
 namespace Octgn.Communication.Test.Modules.SubscriptionModule
 {

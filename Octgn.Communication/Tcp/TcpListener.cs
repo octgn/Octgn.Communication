@@ -2,7 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace Octgn.Communication
+namespace Octgn.Communication.Tcp
 {
     public class TcpListener : IConnectionListener, IDisposable
     {

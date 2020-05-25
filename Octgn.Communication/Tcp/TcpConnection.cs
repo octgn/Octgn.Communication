@@ -1,12 +1,11 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Octgn.Communication
+namespace Octgn.Communication.Tcp
 {
     public class TcpConnection : ConnectionBase
     {
@@ -183,7 +182,8 @@ namespace Octgn.Communication
 
                     var packetBuffer = await ReadChunk(dataLength);
 
-                    ProcessReceivedData(packetId, packetBuffer, Serializer).SignalOnException();
+                    ProcessReceivedData(packetId, packetBuffer, Serializer)
+                        .SignalOnException();
                 }
             } catch (ObjectDisposedException) {
                 Log.Warn($"{this}: Disconnected");
@@ -191,8 +191,8 @@ namespace Octgn.Communication
                 Log.Warn($"{this}: Invalid Data Length: {ex.Message}");
             } catch (IOException ex) {
                 Log.Warn($"{this}: Disconnected", ex);
-            } catch (TaskCanceledException) {
-                Log.Warn($"{this}: Disconnected. Task canceled.");
+            } catch (OperationCanceledException) {
+                Log.Warn($"{this}: Disconnected. Operation canceled.");
             } catch (DisconnectedException ex) when (ex.InnerException != null) {
                 Log.Warn($"{this}: Disconnected", ex.InnerException);
             } catch (DisconnectedException) {

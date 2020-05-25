@@ -83,10 +83,6 @@
     <Compile Include="Utility\UIDTests.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Octgn.Communication.WindowsDesktop\Octgn.Communication.WindowsDesktop.csproj">
-      <Project>{9be61987-6599-4d33-96d3-4b22f30a07f6}</Project>
-      <Name>Octgn.Communication.WindowsDesktop</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Octgn.Communication\Octgn.Communication.csproj">
       <Project>{6a6d0a70-9e84-4f77-bb25-63eab434e26a}</Project>
       <Name>Octgn.Communication</Name>

@@ -8,6 +8,7 @@ using System.Net;
 using System.Linq;
 using Octgn.Communication.Packets;
 using FakeItEasy;
+using Octgn.Communication.Tcp;
 
 namespace Octgn.Communication.Test
 {
