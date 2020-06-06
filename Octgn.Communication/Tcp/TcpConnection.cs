@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -57,7 +58,8 @@ namespace Octgn.Communication.Tcp
         protected override void OnConnectionStateChanged(object sender, ConnectionStateChangedEventArgs args) {
             switch (args.NewState) {
                 case ConnectionState.Handshaking:
-                    ReadPackets().SignalOnException();
+                    StartReadingAllPackets();
+
                     break;
                 case ConnectionState.Closed:
                     try {
@@ -67,6 +69,7 @@ namespace Octgn.Communication.Tcp
                     } catch (Exception ex) {
                         Log.Warn($"{this}: {nameof(OnConnectionStateChanged)}", ex);
                     }
+
                     break;
             }
 
@@ -146,62 +149,113 @@ namespace Octgn.Communication.Tcp
             }
         }
 
-        private async Task ReadPackets() {
-            async Task<byte[]> ReadChunk(int size) {
-                var buffer = new byte[size];
-                var bufferLength = 0;
+        private async Task<byte[]> ReadBytes(int count) {
+            var buffer = new byte[count];
+            var bufferLength = 0;
 
-                while (true) {
-                    ClosedCancellationToken.ThrowIfCancellationRequested();
+            while (bufferLength < count) {
+                ClosedCancellationToken.ThrowIfCancellationRequested();
 
-                    var count = await _clientStream.ReadAsync(buffer, bufferLength, size - bufferLength, ClosedCancellationToken);
-
-                    if (count == 0) throw new DisconnectedException();
-
-                    bufferLength += count;
-
-                    if (bufferLength == size) {
-                        return buffer;
-                    }
+                int readByteCount;
+                try {
+                    readByteCount = await _clientStream.ReadAsync(buffer, bufferLength, count - bufferLength, ClosedCancellationToken);
+                } catch (Exception ex) {
+                    throw new DisconnectedException($"Disconnected while reading", ex);
                 }
+
+                if (readByteCount == 0) throw new DisconnectedException($"End of data");
+
+                bufferLength += readByteCount;
             }
 
-            Log.Info($"{this}: {nameof(ReadPackets)}");
+            Debug.Assert(bufferLength == count);
+
+            return buffer;
+        }
+
+        private async Task<(ulong Id, byte[] Data)> ReadPacket() {
+            var idChunk = await ReadBytes(8);
+
+            ulong packetId;
+            try {
+                packetId = BitConverter.ToUInt64(idChunk, 0);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Could not read packet id", idChunk, ex);
+            }
+
+            var lengthChunk = await ReadBytes(4);
+
+            int dataLength;
+            try {
+                dataLength = BitConverter.ToInt32(lengthChunk, 0);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Could not read data length", lengthChunk, ex);
+            }
+
+            if (dataLength <= 0 || dataLength > SerializedPacket.MAX_DATA_SIZE)
+                throw new InvalidDataLengthException($"Invalid data length {dataLength}");
+
+            var packetBuffer = await ReadBytes(dataLength);
+
+            return (packetId, packetBuffer);
+        }
+
+        internal Exception LastPacketReadingException;
+
+        private async void StartReadingAllPackets() {
+            Log.Info($"{this}: {nameof(StartReadingAllPackets)}");
 
             try {
-                while (!ClosedCancellationToken.IsCancellationRequested) {
-                    var idChunk = await ReadChunk(8);
+                await ReadAllPackets();
+            } catch (ObjectDisposedException ex) {
+                LastPacketReadingException = ex;
 
-                    var packetId = BitConverter.ToUInt64(idChunk, 0);
-
-                    var lengthChunk = await ReadChunk(4);
-
-                    var dataLength = BitConverter.ToInt32(lengthChunk, 0);
-
-                    if (dataLength <= 0 || dataLength > 5000000) throw new InvalidDataLengthException($"Invalid data length {dataLength}");
-
-                    var packetBuffer = await ReadChunk(dataLength);
-
-                    ProcessReceivedData(packetId, packetBuffer, Serializer)
-                        .SignalOnException();
-                }
-            } catch (ObjectDisposedException) {
                 Log.Warn($"{this}: Disconnected");
             } catch (InvalidDataLengthException ex) {
+                LastPacketReadingException = ex;
+
                 Log.Warn($"{this}: Invalid Data Length: {ex.Message}");
+            } catch (InvalidDataException ex) {
+                LastPacketReadingException = ex;
+
+                Log.Warn($"{this}: Invalid Data: {ex.Message}", ex.InnerException);
             } catch (IOException ex) {
-                Log.Warn($"{this}: Disconnected", ex);
-            } catch (OperationCanceledException) {
+                LastPacketReadingException = ex;
+
+                Log.Warn($"{this}: Disconnected: {ex.Message}", ex);
+            } catch (OperationCanceledException ex) {
+                LastPacketReadingException = ex;
+
                 Log.Warn($"{this}: Disconnected. Operation canceled.");
             } catch (DisconnectedException ex) when (ex.InnerException != null) {
-                Log.Warn($"{this}: Disconnected", ex.InnerException);
-            } catch (DisconnectedException) {
+                LastPacketReadingException = ex;
+
+                Log.Warn($"{this}: Disconnected: {ex.InnerException.Message}", ex.InnerException);
+            } catch (DisconnectedException ex) {
+                LastPacketReadingException = ex;
+
                 Log.Warn($"{this}: Disconnected");
+            } catch (Exception ex) {
+                LastPacketReadingException = ex;
+
+                Signal.Exception(ex);
             } finally {
-                Log.Info($"{this}: {nameof(ReadPackets)}: Done reading packets");
+                Log.Info($"{this}: Done reading packets");
             }
 
             TransitionState(ConnectionState.Closed);
+        }
+
+        private async Task ReadAllPackets() {
+            while (!ClosedCancellationToken.IsCancellationRequested) {
+                ulong packetId;
+                byte[] packetData;
+
+                (packetId, packetData) = await ReadPacket();
+
+                // Does not throw any exceptions, it starts a background thread.
+                StartProcessingReceivedData(packetId, packetData, Serializer);
+            }
         }
 
         public override IConnection Clone() {

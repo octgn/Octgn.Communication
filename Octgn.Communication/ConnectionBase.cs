@@ -127,7 +127,7 @@ namespace Octgn.Communication
                 stateTransitioned = oldState != _state;
             }
 
-            if(stateTransitioned)
+            if (stateTransitioned)
                 OnConnectionStateChanged(this, args);
 
             return stateTransitioned;
@@ -199,7 +199,7 @@ namespace Octgn.Communication
 
         protected abstract Task ConnectImpl(CancellationToken cancellationToken);
 
-        public void Close(){
+        public void Close() {
             TransitionState(ConnectionState.Closed);
         }
 
@@ -207,105 +207,144 @@ namespace Octgn.Communication
 
         public event PacketReceived PacketReceived;
 
-        protected async Task ProcessReceivedData(ulong packetId, byte[] data, ISerializer serializer) {
-            SerializedPacket serializedPacket = null;
+        protected async void StartProcessingReceivedData(ulong packetId, byte[] data, ISerializer serializer) {
+            Log.Info($"{this}: {nameof(StartProcessingReceivedData)}");
+
             try {
-                if (data.Length < SerializedPacket.HEADER_SIZE)
-                    throw new InvalidOperationException("Data received is smaller than header.");
-
-                serializedPacket = SerializedPacket.Read(data);
-
-                Log.TracePacketReceived(this, serializedPacket);
-
-                if (State == ConnectionState.Closed) {
-                    Log.Warn($"{this}: Connection is closed. Dropping packet {serializedPacket}");
-                    return;
-                }
-
-                {
-                    var args = new PacketReceivedEventArgs() {
-                        PacketId = packetId,
-                        Packet = serializedPacket,
-                        Connection = this
-                    };
-
-                    var packetEventHandler = PacketReceived;
-
-                    if (packetEventHandler != null) {
-                        foreach (var handler in packetEventHandler.GetInvocationList().Cast<PacketReceived>()) {
-                            await handler(this, args);
-                            if (args.IsHandled) return;
-                        }
-                    }
-                }
-
-                var packet = serializedPacket.DeserializePacket(serializer);
-
-                if(packet is HandshakeRequestPacket helloPacket) {
-                    //TODO: Move this into the Server class
-
-                    if (Handshaker == null) throw new InvalidOperationException($"{this}: Can't handle {helloPacket} because there is no {nameof(Handshaker)}");
-
-                    var result = await Handshaker.OnHandshakeRequest(helloPacket, this, ClosedCancellationToken);
-
-                    if (result.Successful) {
-                        User = result.User;
-                    }
-
-                    var response = new ResponsePacket(result);
-
-                    await Respond(packetId, response, ClosedCancellationToken);
-
-                    TransitionState(result.Successful ? ConnectionState.Connected : ConnectionState.Closed);
-                } else if(packet is RequestPacket requestPacket) {
-                    var requestContext = new RequestContext() {
-                        Client = Client,
-                        Server = Server,
-                        Connection = this
-                    };
-
-                    var requestEventHandler = RequestReceived;
-
-                    if (requestEventHandler == null)
-                        throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
-
-                    requestPacket.Context = requestContext;
-
-                    var args = new RequestReceivedEventArgs() {
-                        Request = requestPacket,
-                        Context = requestContext
-                    };
-
-                    foreach (var handler in requestEventHandler.GetInvocationList().Cast<RequestReceived>()) {
-                        var result = await handler(this, args);
-                        if (result != null) {
-                            args.Response = result;
-                            args.IsHandled = true;
-                        }
-                        if (args.IsHandled) break;
-                    }
-
-                    if (requestPacket.Flags.HasFlag(PacketFlag.AckRequired)) {
-                        var unhandledRequestResponse = new ResponsePacket(new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
-
-                        var response = (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Response));
-
-                        await Respond(packetId, response, ClosedCancellationToken);
-                    }
-                } else if (packet is IAck ack) {
-                    if (_awaitingAck.TryGetValue(ack.PacketId, out var tcs))
-                        tcs.SetResult(packet);
-                    else
-                        throw new InvalidOperationException($"{this}: Ack: Could not find packet #{ack.PacketId}");
-                } else {
-#pragma warning disable RCS1079 // Throwing of new NotImplementedException.
-                    throw new NotImplementedException($"{this}: {packet.GetType().Name} packet not supported.");
-#pragma warning restore RCS1079 // Throwing of new NotImplementedException.
-                }
+                await ProcessReceivedData(packetId, data, serializer);
             } catch (OperationCanceledException) {
-                Log.Warn($"{this}: Canceled processing packet {serializedPacket}");
+                Log.Warn($"{this}: Canceled processing packet {packetId}");
+            } catch (DisconnectedException ex) {
+                Log.Warn($"{this}: Disconnected while processing packet {packetId}: {ex}");
+            } catch (InvalidDataException ex) {
+                Log.Warn($"{this}: Dropping packet, data is invalid: {ex}");
             } catch (Exception ex) {
-                Signal.Exception(ex, $"{this}: Error processing packet {serializedPacket}");
+                Signal.Exception(ex);
+            }
+        }
+
+        protected async Task ProcessReceivedData(ulong packetId, byte[] data, ISerializer serializer) {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (serializer == null) throw new ArgumentNullException(nameof(serializer));
+
+            if (State == ConnectionState.Closed) throw new DisconnectedException();
+
+            var serializedPacket = SerializedPacket.Read(data);
+
+            Log.TracePacketReceived(this, serializedPacket);
+
+            {
+                var args = new PacketReceivedEventArgs() {
+                    PacketId = packetId,
+                    Packet = serializedPacket,
+                    Connection = this
+                };
+
+                var packetEventHandler = PacketReceived;
+
+                if (packetEventHandler != null) {
+                    foreach (var handler in packetEventHandler.GetInvocationList().Cast<PacketReceived>()) {
+                        if (State == ConnectionState.Closed) throw new DisconnectedException();
+
+                        try {
+                            await handler(this, args);
+                        } catch (Exception ex) {
+                            Log.Error($"Error in {nameof(PacketReceived)} event handler", ex);
+                        }
+
+                        if (args.IsHandled) return;
+                    }
+                }
+            }
+
+            if (State == ConnectionState.Closed) throw new DisconnectedException();
+
+            Packet packet;
+            try {
+                packet = serializedPacket.DeserializePacket(serializer);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Error deserializing {serializedPacket}: {ex.Message}", data, ex);
+            }
+
+            if (State == ConnectionState.Closed) throw new DisconnectedException();
+
+            if (packet is HandshakeRequestPacket helloPacket) {
+                //TODO: Move this into the Server class
+
+                if (Handshaker == null) throw new InvalidOperationException($"{this}: Can't handle {helloPacket} because there is no {nameof(Handshaker)}");
+
+                HandshakeResult result;
+                try {
+                    result = await Handshaker.OnHandshakeRequest(helloPacket, this, ClosedCancellationToken);
+                } catch (Exception ex) {
+                    result = HandshakeResult.Failure("Handshake Failed");
+
+                    Log.Error($"{this}: Handshake Failure: {ex}");
+                }
+
+                if (result.Successful) {
+                    User = result.User;
+                }
+
+                var response = new ResponsePacket(result);
+
+                await Respond(packetId, response, ClosedCancellationToken);
+
+                TransitionState(result.Successful ? ConnectionState.Connected : ConnectionState.Closed);
+            } else if (packet is RequestPacket requestPacket) {
+                var requestContext = new RequestContext() {
+                    Client = Client,
+                    Server = Server,
+                    Connection = this
+                };
+
+                var requestEventHandler = RequestReceived;
+
+                if (requestEventHandler == null)
+                    throw new InvalidOperationException($"{this}: Receiving Requests, but nothing is reading them.");
+
+                requestPacket.Context = requestContext;
+
+                var args = new RequestReceivedEventArgs() {
+                    Request = requestPacket,
+                    Context = requestContext
+                };
+
+                foreach (var handler in requestEventHandler.GetInvocationList().Cast<RequestReceived>()) {
+                    object result = null;
+                    try {
+                        result = await handler(this, args);
+                    } catch (Exception ex) {
+                        Log.Error($"{this}: Error invoking event {nameof(RequestReceived)}: {ex}");
+                    }
+
+                    if (result != null) {
+                        args.Response = result;
+                        args.IsHandled = true;
+                    }
+
+                    if (args.IsHandled) break;
+                }
+
+                if (requestPacket.Flags.HasFlag(PacketFlag.AckRequired)) {
+                    var unhandledRequestResponse = new ResponsePacket(new ErrorResponseData(ErrorResponseCodes.UnhandledRequest, $"Packet {requestPacket} not expected.", false));
+
+                    var response = (!args.IsHandled ? unhandledRequestResponse : new ResponsePacket(args.Response));
+
+                    try {
+                        await Respond(packetId, response, ClosedCancellationToken);
+                    } catch (Exception ex) {
+                        Log.Error($"{this}: Error sending response to Request {requestPacket}: Response={response}: {ex}");
+                    }
+                }
+            } else if (packet is IAck ack) {
+                if (_awaitingAck.TryGetValue(ack.PacketId, out var tcs)) {
+                    tcs.SetResult(packet);
+                } else {
+                    Log.Warn($"{this}: Ack: Could not find packet #{ack.PacketId}");
+                }
+            } else {
+                throw new InvalidDataException($"{this}: {packet.GetType().Name} packet not supported.");
             }
         }
 
@@ -328,7 +367,7 @@ namespace Octgn.Communication
 
             // If we sent a packet that had a critical error, close the connection.
             if (isCritical)
-                throw new InvalidOperationException($"{this}: Sent critical error {response.Data}");
+                throw new DisconnectedException($"{this}: Sent critical error {response.Data}");
         }
 
         internal int StillAwaitingAck => _awaitingAck.Count;
@@ -348,7 +387,8 @@ namespace Octgn.Communication
 
                 responsePacket.Verify();
                 return responsePacket;
-            } return null;
+            }
+            return null;
         }
 
         #endregion
@@ -384,7 +424,7 @@ namespace Octgn.Communication
                 fullPacket.Sent = DateTimeOffset.Now;
             }
 
-            if(packet is IAck packetAsAck && packetAsAck.PacketId <= 0) {
+            if (packet is IAck packetAsAck && packetAsAck.PacketId <= 0) {
                 throw new InvalidOperationException($"Ack doesn't have response ID.");
             }
 
@@ -418,7 +458,7 @@ namespace Octgn.Communication
                 try {
                     await SendImpl(packetId, packetData, cancellationToken);
                 } catch (DisconnectedException ex) {
-                    if(ex.InnerException != null) {
+                    if (ex.InnerException != null) {
                         Log.Warn($"Disconnected sending packet {packet}: {ex.InnerException}");
                     }
                     TransitionState(ConnectionState.Closed);

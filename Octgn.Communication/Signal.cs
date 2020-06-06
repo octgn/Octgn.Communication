@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Threading.Tasks;
 
 namespace Octgn.Communication
@@ -19,10 +18,7 @@ namespace Octgn.Communication
         }
 
         private static async void FireOnException(Exception ex, string message) {
-            var args = new ExceptionEventArgs {
-                Exception = ex,
-                Message = message,
-            };
+            var args = new ExceptionEventArgs(ex, message);
 
             var handler = OnException;
 
@@ -43,8 +39,15 @@ namespace Octgn.Communication
         public Exception Exception { get; set; }
         public string Message { get; set; }
 
+        public ExceptionEventArgs() { }
+
+        public ExceptionEventArgs(Exception exception, string message) {
+            Exception = exception ?? throw new ArgumentNullException(nameof(exception));
+            Message = message;
+        }
+
         public override string ToString() {
-            return Message + Environment.NewLine + Exception;
+            return $"{Message}{Environment.NewLine}{Exception}";
         }
     }
 }

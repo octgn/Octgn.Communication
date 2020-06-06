@@ -76,25 +76,6 @@ namespace Octgn.Communication.Test
                 Assert.AreEqual(1000, conBCounter);
             }
         }
-
-        [Test]
-        public async Task ProcessDataExceptions_DoNotSignal() {
-            var serializer = new XmlSerializer();
-            using (var clientA = A.Fake<Client>())
-            using (var conA = new InMemoryConnection(new FakeHandshaker("conA"), serializer, clientA)) {
-                var feeFee = new BadImageFormatException("FeeFee");
-
-                conA.PacketReceived += (_, __) => {
-                    throw feeFee;
-                };
-
-                try {
-                    await conA.ProcessData(0, new byte[10], serializer);
-                } catch (BadImageFormatException ex) {
-                    Assert.AreSame(feeFee, ex);
-                }
-            }
-        }
     }
 
     public class InMemoryConnection : ConnectionBase

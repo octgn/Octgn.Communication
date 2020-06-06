@@ -21,6 +21,12 @@ namespace Octgn.Communication
             };
         }
 
+        public static HandshakeResult Failure(string error) {
+            return new HandshakeResult {
+                ErrorCode = error
+            };
+        }
+
         public override string ToString() {
             var result = Successful ? "Success" : ErrorCode;
             return $"{nameof(HandshakeResult)}: {User}: {result}";

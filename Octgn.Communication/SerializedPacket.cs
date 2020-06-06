@@ -39,6 +39,7 @@ namespace Octgn.Communication
         const int DESTINATION_SIZE = 64;
         const int ORIGIN_SIZE = 64;
         const int SENT_SIZE = 40;
+        public const int MAX_DATA_SIZE = 5000000;
 
         public const int HEADER_SIZE =
               sizeof(byte)       // Packet type
@@ -103,7 +104,7 @@ namespace Octgn.Communication
 
         public static SerializedPacket Read(byte[] data) {
             if (data.Length < HEADER_SIZE)
-                throw new InvalidOperationException($"Data size of {data.Length} is not long enough.");
+                throw new InvalidDataLengthException($"Data size of {data.Length} is not long enough to read the headers.", data);
 
             var header = new SerializedPacket();
 
@@ -114,11 +115,20 @@ namespace Octgn.Communication
             currentIndex++;
 
             // Packet Flags
-            header.Flags = (PacketFlag)data[currentIndex];
-            currentIndex++;
+            var packetFlagsByte = data[currentIndex++];
+            if(!Enum.IsDefined(typeof(PacketFlag), packetFlagsByte)) {
+                throw new InvalidDataException($"Packet flag byte {packetFlagsByte:X2} is invalid");
+            }
+
+            header.Flags = (PacketFlag)packetFlagsByte;
 
             // Destination
-            header.Destination = Encoding.UTF8.GetString(data, currentIndex, DESTINATION_SIZE);
+            try {
+                header.Destination = Encoding.UTF8.GetString(data, currentIndex, DESTINATION_SIZE);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Packet Destination is invalid", data, ex);
+            }
+
             { // trim ending 0's
                 var zeroIndex = header.Destination.IndexOf('\0');
                 if (zeroIndex >= 0) header.Destination = header.Destination.Substring(0, zeroIndex);
@@ -126,7 +136,13 @@ namespace Octgn.Communication
             currentIndex += DESTINATION_SIZE;
 
             // Origin
-            var originString = Encoding.UTF8.GetString(data, currentIndex, ORIGIN_SIZE);
+            string originString;
+            try {
+                originString = Encoding.UTF8.GetString(data, currentIndex, ORIGIN_SIZE);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Packet Origin is invalid", data, ex);
+            }
+
             { // trim ending 0's
                 var zeroIndex = originString.IndexOf('\0');
                 if (zeroIndex >= 0) originString = originString.Substring(0, zeroIndex);
@@ -136,12 +152,22 @@ namespace Octgn.Communication
             currentIndex += ORIGIN_SIZE;
 
             // Sent Date
-            var dateString = Encoding.UTF8.GetString(data, currentIndex, SENT_SIZE);
-            { // trim ending 0's
-                var zeroIndex = dateString.IndexOf('\0');
-                if (zeroIndex >= 0) dateString = dateString.Substring(0, zeroIndex);
+            string sentDateString;
+            try {
+                sentDateString = Encoding.UTF8.GetString(data, currentIndex, SENT_SIZE);
+            } catch (Exception ex) {
+                throw new InvalidDataException($"Packet Sent Date is invalid", data, ex);
             }
-            header.Sent = DateTimeOffset.Parse(dateString);
+
+            { // trim ending 0's
+                var zeroIndex = sentDateString.IndexOf('\0');
+                if (zeroIndex >= 0) sentDateString = sentDateString.Substring(0, zeroIndex);
+            }
+
+            if (!DateTimeOffset.TryParse(sentDateString, out var packetSentDate))
+                throw new InvalidDataException($"Packet Sent Date can't be parsed: {sentDateString}");
+
+            header.Sent = packetSentDate;
             currentIndex += SENT_SIZE;
 
             if (currentIndex != HEADER_SIZE)
