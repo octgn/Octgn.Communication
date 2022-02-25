@@ -24,6 +24,10 @@ namespace Octgn.Communication.Tcp
 
         internal bool IsListenerConnection { get; }
 
+        public const int DefaultSendTimeoutSeconds = 15;
+
+        public static TimeSpan SendTimeout { get; set; } = TimeSpan.FromSeconds(DefaultSendTimeoutSeconds);
+
         /// <summary>
         /// Creates a <see cref="TcpConnection"/> from and already open <see cref="TcpClient"/>
         /// </summary>
@@ -34,6 +38,8 @@ namespace Octgn.Communication.Tcp
             : base(client.Client.RemoteEndPoint.ToString(), handshaker, serializer, server) {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _clientStream = _client.GetStream() ?? throw new ArgumentNullException(nameof(_client) + "." + nameof(_client.GetStream));
+
+            _clientStream.WriteTimeout = (int)SendTimeout.TotalMilliseconds;
 
             IsListenerConnection = true;
 
@@ -108,6 +114,8 @@ namespace Octgn.Communication.Tcp
                     await _client.ConnectAsync(address, port);
 
                     _clientStream = _client.GetStream() ?? throw new InvalidOperationException("Null stream " + nameof(_client) + "." + nameof(_client.GetStream));
+
+                    _clientStream.WriteTimeout = (int)SendTimeout.TotalMilliseconds;
 
                     Log.Info($"{this}: Connected to {address}:{port}...");
 
