@@ -92,7 +92,7 @@ namespace Load
                     foreach (var client in clients.Values) {
                         client.Dispose();
 
-                        while(client.Status != ConnectionStatus.Disconnected) {
+                        while (client.Status != ConnectionStatus.Disconnected) {
                             Thread.Yield();
                         }
                     }
@@ -207,7 +207,7 @@ namespace Load
                 Name = context.Name;
             }
 
-            private string FormatMessage(string message, Exception ex = null, [CallerMemberName]string caller = null) {
+            private string FormatMessage(string message, Exception ex = null, [CallerMemberName] string caller = null) {
                 var ext = ex == null ? string.Empty : Environment.NewLine + ex.ToString();
                 return $"{caller.ToUpper()}: {Name}: {message} {ext}";
             }
