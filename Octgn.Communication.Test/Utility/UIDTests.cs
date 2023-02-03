@@ -9,10 +9,12 @@ namespace Octgn.Communication.Test.Utility
     {
         [TestCase]
         public void NoDuplicates() {
+            const int reps = 5_000_000;
             var values = new HashSet<string>();
-            for(var i = 0; i < 5000000; i++) {
+            for(var i = 0; i < reps; i++) {
                 values.Add(UID.Generate(i));
             }
+            Assert.AreEqual(reps, values.Count, "Collision detected");
         }
     }
 }
